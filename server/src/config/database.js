@@ -8,7 +8,18 @@ const { Pool } = pg;
 
 let useFallback = false;
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://zebra:zebra_dev@localhost:5432/zebra_rms';
+let rawUrl = process.env.DATABASE_URL || 'postgresql://zebra:zebra_dev@localhost:5432/zebra_rms';
+
+// Auto-correct Supabase pooler username if project ref prefix is missing
+if (rawUrl.includes('pooler.supabase.com')) {
+  // If user is just 'postgres:' without project ref, and url or project id is available:
+  const projectRef = 'rklivuhmhpblqajsaaff';
+  if (rawUrl.includes('://postgres:') && !rawUrl.includes('://postgres.')) {
+    rawUrl = rawUrl.replace('://postgres:', `://postgres.${projectRef}:`);
+  }
+}
+
+const connectionString = rawUrl;
 const isRemoteDb = connectionString.includes('supabase') || connectionString.includes('pooler') || connectionString.includes('sslmode=require') || connectionString.includes('.co:') || connectionString.includes('.com:');
 
 const pool = new Pool({
@@ -20,26 +31,32 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
+  console.error('Database connection error:', err.message);
   if (!useFallback) {
     console.warn('Database connection lost. Operating in spatial memory fallback mode:', err.message);
     useFallback = true;
   }
 });
 
-// Test initial connection asynchronously
+// Test initial connection asynchronously and log status explicitly
 (async () => {
   try {
     const client = await pool.connect();
     const res = await client.query('SELECT postgis_version()');
     client.release();
     console.log(`===============================================`);
-    console.log(`Connected to LIVE PostgreSQL/PostGIS Database!`);
+    console.log(`>>> Connected to LIVE PostgreSQL/PostGIS Database! <<<`);
     console.log(`PostGIS Version: ${res.rows[0]?.postgis_version}`);
-    console.log(`Host: ${connectionString.split('@')[1]?.split('/')[0] || 'localhost'}`);
+    console.log(`Database Host: ${connectionString.split('@')[1]?.split('/')[0] || 'localhost'}`);
     console.log(`===============================================`);
     useFallback = false;
   } catch (err) {
-    console.log('PostgreSQL database not connected. Operating in high-fidelity embedded spatial mode.');
+    console.error(`===============================================`);
+    console.error(`!!! FAILED TO CONNECT TO LIVE DATABASE !!!`);
+    console.error(`Error:`, err.message);
+    console.error(`Falling back to temporary memory storage. DATA WILL NOT PERSIST!`);
+    console.error(`Check your DATABASE_URL on Render environment settings.`);
+    console.error(`===============================================`);
     useFallback = true;
   }
 })();
@@ -63,6 +80,7 @@ export async function query(text, params = []) {
 
     return result;
   } catch (err) {
+    console.error('Query execution error on live database:', err.message);
     if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.message?.includes('connect ECONNREFUSED')) {
       useFallback = true;
       return executeFallbackQuery(text, params);
