@@ -1,0 +1,12 @@
+{
+  "name": "gasouth-dcs",
+  "version": "1.0.0",
+  "description": "Ga South Municipal Assembly Data Collection System",
+  "private": true,
+  "scripts": {
+    "build": "cd client && npm install && npm run build && cd ../server && npm install",
+    "start": "node server/src/index.js",
+    "server": "cd server && npm start",
+    "client": "cd client && npm run dev"
+  }
+}

@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: zebra_rms_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: zebra
+      POSTGRES_PASSWORD: zebra_dev
+      POSTGRES_DB: zebra_rms
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U zebra -d zebra_rms']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: zebra_rms_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://zebra:zebra_dev@db:5432/zebra_rms
+      JWT_SECRET: change-this-in-production
+      JWT_EXPIRES_IN: 24h
+      PORT: 3001
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 5242880
+      ACCURACY_THRESHOLD: 15
+      NODE_ENV: development
+    ports:
+      - '3001:3001'
+    volumes:
+      - photo_uploads:/app/uploads
+
+volumes:
+  pgdata:
+  photo_uploads:
