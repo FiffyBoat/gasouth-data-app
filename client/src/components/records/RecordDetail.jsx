@@ -43,7 +43,7 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
   const isBudgetDirector = hasRole('budget_director') || hasRole('admin');
 
   const canSupervisorReview = isSupervisor && record.status === 'submitted';
-  const canBudgetApprove = isBudgetDirector && (record.status === 'reviewed' || record.status === 'submitted');
+  const canBudgetApprove = isBudgetDirector && record.status === 'reviewed';
 
   const rateableVal = parseFloat(record.attributes?.rateable_value) || 0;
   const rateImpost = parseFloat(record.attributes?.rate_impost) || 0;

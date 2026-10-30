@@ -1,7 +1,7 @@
 import express from 'express';
 import { query, getClient } from '../config/database.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { validateRecord, handleValidation } from '../middleware/validate.js';
+import { validateRecord, validateRecordOnSubmit, handleValidation } from '../middleware/validate.js';
 import { auditLog } from '../middleware/audit.js';
 import { findZoneForPoint, findNearbyRecords } from '../utils/spatial.js';
 import { checkDuplicates } from '../utils/duplicateCheck.js';
@@ -92,6 +92,13 @@ router.get('/', authenticate, async (req, res) => {
     } else if (req.user.role === 'supervisor' && req.query.zone_only === 'true' && req.user.assigned_zone_id && !zone_id) {
       conditions.push(`r.zone_id = $${paramIndex++}`);
       params.push(req.user.assigned_zone_id);
+    }
+
+    // Strict workflow boundary: In review mode, Budget Director cannot access unreviewed 'submitted' records
+    if (req.user.role === 'budget_director' && (req.query.for_review === 'true' || req.query.review_queue === 'true')) {
+      if (status === 'submitted') {
+        return res.status(403).json({ error: 'Budget Director can only access records after Data Supervisor review (status: reviewed).' });
+      }
     }
 
     if (moduleFilter) {
@@ -346,6 +353,7 @@ router.post(
   '/',
   authenticate,
   validateRecord,
+  validateRecordOnSubmit,
   handleValidation,
   auditLog('create', 'record'),
   async (req, res) => {
@@ -459,6 +467,7 @@ router.put(
   '/:id',
   authenticate,
   validateRecord,
+  validateRecordOnSubmit,
   handleValidation,
   auditLog('update', 'record'),
   async (req, res) => {
@@ -662,6 +671,37 @@ router.patch(
         if (record.created_by !== req.user.id) {
           return res.status(403).json({ error: 'You can only update your own records' });
         }
+        if (targetStatus === 'submitted') {
+          const attrs = typeof record.attributes === 'string' ? JSON.parse(record.attributes || '{}') : (record.attributes || {});
+          if (record.latitude == null || record.longitude == null) {
+            return res.status(422).json({ error: 'GPS location must be captured before submitting' });
+          }
+          if (!record.owner_name?.trim()) {
+            return res.status(422).json({ error: 'Ratepayer name is required before submitting' });
+          }
+          if (!record.owner_phone?.trim()) {
+            return res.status(422).json({ error: 'Ratepayer phone number is required before submitting' });
+          }
+          if (record.module === 'property') {
+            if (!attrs.property_address?.trim()) {
+              return res.status(422).json({ error: 'Property address is required for Property Rate records' });
+            }
+            if (!attrs.structural_type?.trim() && !attrs.construction_type?.trim()) {
+              return res.status(422).json({ error: 'Structural type is required for Property Rate records' });
+            }
+          } else if (record.module === 'business') {
+            if (!attrs.business_category?.trim()) {
+              return res.status(422).json({ error: 'Business category is required for BOP records' });
+            }
+            if (!attrs.services_provided?.trim()) {
+              return res.status(422).json({ error: 'Services provided is required for BOP records' });
+            }
+          } else if (record.module === 'market_stall') {
+            if (!attrs.market_name?.trim() || !attrs.stall_number?.trim() || !attrs.commodity?.trim()) {
+              return res.status(422).json({ error: 'Market name, stall number, and commodity are required for Market Stall records' });
+            }
+          }
+        }
       }
 
       // 2. Data Supervisor: reviews submitted records and endorses them as 'reviewed' (or flags/rejects)
@@ -671,6 +711,11 @@ router.patch(
             error: 'Data Supervisors review records and submit them for Budget Director approval (status: reviewed)',
           });
         }
+        if (record.status !== 'submitted') {
+          return res.status(403).json({
+            error: 'Data Supervisors can only review records in submitted status',
+          });
+        }
       }
 
       // 3. Budget Director: approves reviewed records as 'approved' (or flags/rejects)
@@ -678,6 +723,11 @@ router.patch(
         if (!['approved', 'flagged', 'rejected'].includes(targetStatus)) {
           return res.status(403).json({
             error: 'Budget Director has final sign-off authority to approve records for billing',
+          });
+        }
+        if (record.status !== 'reviewed') {
+          return res.status(403).json({
+            error: 'Budget Director can only approve records that have been reviewed by a Data Supervisor (status: reviewed)',
           });
         }
       }

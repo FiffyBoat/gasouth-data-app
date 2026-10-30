@@ -10,6 +10,7 @@ import {
   MapPin,
   Tag,
   Info,
+  AlertCircle,
 } from 'lucide-react';
 import GPSCapture from '../gps/GPSCapture';
 import GeofenceWarning from '../gps/GeofenceWarning';
@@ -77,8 +78,22 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
   // Photos
   const [photos, setPhotos] = useState(initialRecord?.photos || []);
 
+  // Form validation errors state (for submit validation)
+  const [formErrors, setFormErrors] = useState({});
+
   // Warnings
   const [geofenceWarning, setGeofenceWarning] = useState(null);
+
+  // Clear specific field error when user edits it
+  const updateFieldError = (field) => {
+    if (formErrors[field]) {
+      setFormErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
 
   // Load from autosave on initial mount if not editing an existing record
   useEffect(() => {
@@ -115,6 +130,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
 
   const handleAttributeChange = (key, val) => {
     setAttributes((prev) => ({ ...prev, [key]: val }));
+    updateFieldError(key);
   };
 
   const handleAddPhoto = (photoObj) => {
@@ -125,11 +141,75 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleFormSubmit = (status) => {
+  const validateForSubmit = () => {
+    const errors = {};
+
     if (geo.latitude == null || geo.longitude == null) {
-      alert('Please capture or select the GPS location before saving the record.');
-      return;
+      errors.gps = 'GPS coordinates are mandatory. Please capture device GPS or set a manual pin.';
     }
+
+    if (!ownerName || !ownerName.trim()) {
+      errors.owner_name = "Ratepayer's Name is required";
+    }
+
+    if (!ownerPhone || !ownerPhone.trim()) {
+      errors.owner_phone = 'Phone number is required';
+    } else {
+      const cleanPhone = ownerPhone.replace(/[\s-]/g, '');
+      if (cleanPhone.length < 9) {
+        errors.owner_phone = 'Please enter a valid phone number (at least 9 digits)';
+      }
+    }
+
+    if (moduleType === 'property') {
+      if (!attributes.property_address || !attributes.property_address.trim()) {
+        errors.property_address = 'Property address (House / Plot No.) is required';
+      }
+      if (!attributes.structural_type || !attributes.structural_type.trim()) {
+        errors.structural_type = 'Structural / construction type is required';
+      }
+    } else if (moduleType === 'business') {
+      if (!attributes.business_type || !attributes.business_type.trim()) {
+        errors.business_type = 'Business type is required';
+      }
+      if (!attributes.business_category || !attributes.business_category.trim()) {
+        errors.business_category = 'Business category (Fee-Fixing Class) is required';
+      }
+      if (!attributes.services_provided || !attributes.services_provided.trim()) {
+        errors.services_provided = 'Services provided / goods description is required';
+      }
+    } else if (moduleType === 'market_stall') {
+      if (!attributes.market_name || !attributes.market_name.trim()) {
+        errors.market_name = 'Market / center name is required';
+      }
+      if (!attributes.stall_number || !attributes.stall_number.trim()) {
+        errors.stall_number = 'Stall / shed / store number is required';
+      }
+      if (!attributes.commodity || !attributes.commodity.trim()) {
+        errors.commodity = 'Commodity / trade description is required';
+      }
+    }
+
+    return errors;
+  };
+
+  const handleFormSubmit = (status) => {
+    if (status === 'submitted') {
+      const errors = validateForSubmit();
+      if (Object.keys(errors).length > 0) {
+        setFormErrors(errors);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    } else {
+      // Draft mode: only checks GPS coordinates
+      if (geo.latitude == null || geo.longitude == null) {
+        alert('Please capture or select the GPS location before saving a draft.');
+        return;
+      }
+    }
+
+    setFormErrors({});
 
     const payload = {
       module: moduleType,
@@ -139,8 +219,8 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       accuracy_m: geo.accuracy,
       capture_method: geo.captureMethod || 'device-gps',
       ghana_post_address: ghanaPostAddress || null,
-      owner_name: ownerName || null,
-      owner_phone: ownerPhone || null,
+      owner_name: ownerName?.trim() || null,
+      owner_phone: ownerPhone?.trim() || null,
       owner_id_type: null,
       owner_id_number: null,
       attributes,
@@ -155,6 +235,22 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
+      {/* Missing Required Fields Alert Banner */}
+      {Object.keys(formErrors).length > 0 && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-800 shadow-sm">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <div className="text-xs sm:text-sm">
+            <h4 className="font-bold text-red-900">Submission Blocked — Mandatory Fields Required</h4>
+            <p className="mt-0.5 text-red-700">
+              Ga South Municipal Assembly standards require all core data (GPS, ratepayer details, and category specifications) to be fully entered before submitting for Supervisor review.
+            </p>
+            {formErrors.gps && (
+              <p className="mt-1 font-semibold text-red-800 underline">⚠️ {formErrors.gps}</p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Module Selector Tabs */}
       <div className="grid grid-cols-3 gap-2 p-1.5 bg-gray-100/80 rounded-2xl border border-gray-200">
         <button
@@ -239,9 +335,19 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
               required
               placeholder="e.g. Nii Armah Mensah / Amanfro Royal Family"
               value={ownerName}
-              onChange={(e) => setOwnerName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+              onChange={(e) => {
+                setOwnerName(e.target.value);
+                updateFieldError('owner_name');
+              }}
+              className={`w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none transition-colors ${
+                formErrors.owner_name
+                  ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                  : 'border-gray-300 focus:ring-primary-500'
+              }`}
             />
+            {formErrors.owner_name && (
+              <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.owner_name}</p>
+            )}
           </div>
 
           <div>
@@ -253,9 +359,19 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
               required
               placeholder="e.g. 0244123456"
               value={ownerPhone}
-              onChange={(e) => setOwnerPhone(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+              onChange={(e) => {
+                setOwnerPhone(e.target.value);
+                updateFieldError('owner_phone');
+              }}
+              className={`w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none transition-colors ${
+                formErrors.owner_phone
+                  ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                  : 'border-gray-300 focus:ring-primary-500'
+              }`}
             />
+            {formErrors.owner_phone && (
+              <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.owner_phone}</p>
+            )}
           </div>
 
           <div>
@@ -342,7 +458,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                UPN (Unique Parcel Number) *
+                UPN (Unique Parcel Number)
               </label>
               <input
                 type="text"
@@ -362,8 +478,44 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
                 placeholder="e.g. Hse No. F.124/2, Plot 16"
                 value={attributes.property_address || ''}
                 onChange={(e) => handleAttributeChange('property_address', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none transition-colors ${
+                  formErrors.property_address
+                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                    : 'border-gray-300 focus:ring-primary-500'
+                }`}
               />
+              {formErrors.property_address && (
+                <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.property_address}</p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Structural / Construction Type *
+              </label>
+              <select
+                value={attributes.structural_type || ''}
+                onChange={(e) => handleAttributeChange('structural_type', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-xl text-sm bg-white focus:ring-1 focus:outline-none transition-colors ${
+                  formErrors.structural_type
+                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                    : 'border-gray-300 focus:ring-primary-500'
+                }`}
+              >
+                <option value="">-- Select Structural / Construction Type --</option>
+                <option value="Single Storey Sandcrete / Block">Single Storey Sandcrete / Block</option>
+                <option value="Multi-Storey Commercial Block">Multi-Storey Commercial Block</option>
+                <option value="Multi-Storey Residential Flats">Multi-Storey Residential Flats</option>
+                <option value="Traditional Compound House">Traditional Compound House</option>
+                <option value="Detached Bungalow / Villa">Detached Bungalow / Villa</option>
+                <option value="Semi-Detached House">Semi-Detached House</option>
+                <option value="Metal Container / Kiosk">Metal Container / Kiosk</option>
+                <option value="Wooden Shed / Temporary Structure">Wooden Shed / Temporary Structure</option>
+                <option value="Warehouse / Industrial Bay">Warehouse / Industrial Bay</option>
+              </select>
+              {formErrors.structural_type && (
+                <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.structural_type}</p>
+              )}
             </div>
           </div>
 
@@ -397,6 +549,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
                 placeholder="e.g. Sole Proprietorship, Limited Liability..."
                 value={attributes.business_type || ''}
                 onChange={(val) => handleAttributeChange('business_type', val)}
+                error={formErrors.business_type}
               />
             </div>
 
@@ -408,6 +561,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
                 placeholder="e.g. Retail & Provisions, Hospitality..."
                 value={attributes.business_category || ''}
                 onChange={(val) => handleAttributeChange('business_category', val)}
+                error={formErrors.business_category}
               />
             </div>
 
@@ -419,6 +573,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
                 placeholder="e.g. Mobile Money transactions, Sale of electrical appliances..."
                 value={attributes.services_provided || ''}
                 onChange={(val) => handleAttributeChange('services_provided', val)}
+                error={formErrors.services_provided}
               />
             </div>
 
@@ -462,41 +617,65 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Market / Center Name
+                Market / Center Name *
               </label>
               <input
                 type="text"
+                required
                 placeholder="e.g. Kasoa New Market / Amanfro Community Market / Galilea Market"
                 value={attributes.market_name || ''}
                 onChange={(e) => handleAttributeChange('market_name', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none transition-colors ${
+                  formErrors.market_name
+                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                    : 'border-gray-300 focus:ring-primary-500'
+                }`}
               />
+              {formErrors.market_name && (
+                <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.market_name}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Stall / Shed / Store Number
+                Stall / Shed / Store Number *
               </label>
               <input
                 type="text"
+                required
                 placeholder="e.g. Block B, Shed 14"
                 value={attributes.stall_number || ''}
                 onChange={(e) => handleAttributeChange('stall_number', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none transition-colors ${
+                  formErrors.stall_number
+                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                    : 'border-gray-300 focus:ring-primary-500'
+                }`}
               />
+              {formErrors.stall_number && (
+                <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.stall_number}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
-                Commodity / Trade Description
+                Commodity / Trade Description *
               </label>
               <input
                 type="text"
+                required
                 placeholder="e.g. Vegetables, Provisions, Textiles"
                 value={attributes.commodity || ''}
                 onChange={(e) => handleAttributeChange('commodity', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none transition-colors ${
+                  formErrors.commodity
+                    ? 'border-red-500 focus:ring-red-500 bg-red-50/20'
+                    : 'border-gray-300 focus:ring-primary-500'
+                }`}
               />
+              {formErrors.commodity && (
+                <p className="text-xs text-red-600 mt-1 font-medium">{formErrors.commodity}</p>
+              )}
             </div>
 
             <div>

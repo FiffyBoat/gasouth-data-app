@@ -16,13 +16,17 @@ export default function ReviewRecords() {
   // Default stage based on role:
   // Data Supervisor default to 'submitted'
   // Budget Director default to 'reviewed'
-  const defaultStage = hasRole('budget_director') ? 'reviewed' : 'submitted';
+  const isBudgetDirector = hasRole('budget_director');
+  const isSupervisor = hasRole('supervisor');
+  const isAdmin = hasRole('admin');
+
+  const defaultStage = isBudgetDirector && !isAdmin ? 'reviewed' : 'submitted';
   const [stageFilter, setStageFilter] = useState(defaultStage);
 
   const fetchRecordsToReview = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/api/records?status=${stageFilter}&limit=100`);
+      const res = await api.get(`/api/records?status=${stageFilter}&for_review=true&limit=100`);
       const list = res.data?.records || [];
       setRecords(list);
 
@@ -101,31 +105,35 @@ export default function ReviewRecords() {
       {/* Review Stage Navigation Pills */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 shadow-sm">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setStageFilter('submitted')}
-            className={`px-3.5 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors ${
-              stageFilter === 'submitted'
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>1. Supervisor Queue (Submitted)</span>
-          </button>
+          {(isSupervisor || isAdmin) && (
+            <button
+              type="button"
+              onClick={() => setStageFilter('submitted')}
+              className={`px-3.5 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors ${
+                stageFilter === 'submitted'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>1. Supervisor Queue (Submitted)</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setStageFilter('reviewed')}
-            className={`px-3.5 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors ${
-              stageFilter === 'reviewed'
-                ? 'bg-purple-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Award className="w-3.5 h-3.5" />
-            <span>2. Budget Director Queue (Reviewed)</span>
-          </button>
+          {(isBudgetDirector || isAdmin) && (
+            <button
+              type="button"
+              onClick={() => setStageFilter('reviewed')}
+              className={`px-3.5 py-1.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-colors ${
+                stageFilter === 'reviewed'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5" />
+              <span>2. Budget Director Queue (Reviewed)</span>
+            </button>
+          )}
 
           <button
             type="button"

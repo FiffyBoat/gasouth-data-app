@@ -104,6 +104,72 @@ export const validateRecord = [
 ];
 
 /**
+ * Middleware that enforces required fields when a record is being submitted
+ * (status === 'submitted'). Draft saves bypass this check entirely.
+ */
+export function validateRecordOnSubmit(req, res, next) {
+  const { status, module, owner_name, owner_phone, attributes = {}, latitude, longitude } = req.body;
+
+  // Only enforce when submitting (not saving as draft / other status changes)
+  if (status !== 'submitted') return next();
+
+  const errors = [];
+
+  // GPS is always required
+  if (latitude == null || longitude == null) {
+    errors.push({ field: 'gps', message: 'GPS location must be captured before submitting' });
+  }
+
+  // Universal required fields
+  if (!owner_name?.trim()) {
+    errors.push({ field: 'owner_name', message: 'Ratepayer / Owner name is required' });
+  }
+  if (!owner_phone?.trim()) {
+    errors.push({ field: 'owner_phone', message: 'Phone number is required' });
+  }
+
+  // Module-specific required fields
+  if (module === 'property') {
+    if (!attributes.property_address?.trim()) {
+      errors.push({ field: 'property_address', message: 'Property address is required for Property Rate records' });
+    }
+    if (!attributes.structural_type?.trim() && !attributes.construction_type?.trim()) {
+      errors.push({ field: 'structural_type', message: 'Structural / construction type is required for Property Rate records' });
+    }
+  }
+
+  if (module === 'business') {
+    if (!attributes.business_category?.trim()) {
+      errors.push({ field: 'business_category', message: 'Business category is required for BOP records' });
+    }
+    if (!attributes.services_provided?.trim()) {
+      errors.push({ field: 'services_provided', message: 'Services provided / description is required for BOP records' });
+    }
+  }
+
+  if (module === 'market_stall') {
+    if (!attributes.market_name?.trim()) {
+      errors.push({ field: 'market_name', message: 'Market name is required for Market Stall records' });
+    }
+    if (!attributes.stall_number?.trim()) {
+      errors.push({ field: 'stall_number', message: 'Stall number is required for Market Stall records' });
+    }
+    if (!attributes.commodity?.trim()) {
+      errors.push({ field: 'commodity', message: 'Commodity / goods sold is required for Market Stall records' });
+    }
+  }
+
+  if (errors.length > 0) {
+    return res.status(422).json({
+      error: 'Required fields are missing. Please complete the form before submitting.',
+      details: errors,
+    });
+  }
+
+  next();
+}
+
+/**
  * Validation chain for creating/updating a user.
  * Validates username, role, full_name, and optional email/phone.
  */

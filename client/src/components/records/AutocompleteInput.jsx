@@ -17,6 +17,7 @@ export default function AutocompleteInput({
   required = false,
   className = '',
   label,
+  error,
 }) {
   const [focused, setFocused] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
@@ -139,9 +140,12 @@ export default function AutocompleteInput({
         autoComplete="off"
         className={
           className ||
-          'w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-1 focus:ring-primary-500 focus:outline-none'
+          `w-full px-3 py-2 border rounded-xl text-sm focus:ring-1 focus:outline-none ${
+            error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-primary-500'
+          }`
         }
       />
+      {error && <p className="text-xs text-red-600 mt-1 font-medium">{error}</p>}
 
       {showDropdown && (
         <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
