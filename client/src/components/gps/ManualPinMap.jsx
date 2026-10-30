@@ -16,25 +16,31 @@ export default function ManualPinMap({ initialLat, initialLng, onConfirm, onCanc
   useEffect(() => {
     if (!mapContainer.current) return;
 
+    // Use CARTO Positron high-performance, policy-compliant raster tiles
     const map = new maplibregl.Map({
       container: mapContainer.current,
       style: {
         version: 8,
         sources: {
-          osm: {
+          carto: {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tiles: [
+              'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+              'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+              'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+              'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+            ],
             tileSize: 256,
-            attribution: '© OpenStreetMap contributors',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
           },
         },
         layers: [
           {
-            id: 'osm-layer',
+            id: 'carto-layer',
             type: 'raster',
-            source: 'osm',
+            source: 'carto',
             minzoom: 0,
-            maxzoom: 19,
+            maxzoom: 20,
           },
         ],
       },
@@ -46,7 +52,7 @@ export default function ManualPinMap({ initialLat, initialLng, onConfirm, onCanc
 
     const marker = new maplibregl.Marker({
       draggable: true,
-      color: '#4f46e5',
+      color: '#991B1B',
     })
       .setLngLat([defaultLng, defaultLat])
       .addTo(map);

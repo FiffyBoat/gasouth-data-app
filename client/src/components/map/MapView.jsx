@@ -27,23 +27,29 @@ export default function MapView({
   const mapRef = useRef(null);
   const markersRef = useRef([]);
 
+  // CARTO Voyager raster tiles (OpenStreetMap-derived, hosted by CARTO CDN without volunteer server block restrictions)
   const streetStyle = {
     version: 8,
     sources: {
-      osm: {
+      carto: {
         type: 'raster',
-        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tiles: [
+          'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+          'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
+        ],
         tileSize: 256,
-        attribution: '© OpenStreetMap contributors',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       },
     },
     layers: [
       {
-        id: 'osm-layer',
+        id: 'carto-layer',
         type: 'raster',
-        source: 'osm',
+        source: 'carto',
         minzoom: 0,
-        maxzoom: 19,
+        maxzoom: 20,
       },
     ],
   };
@@ -53,9 +59,11 @@ export default function MapView({
     sources: {
       satellite: {
         type: 'raster',
-        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        ],
         tileSize: 256,
-        attribution: 'Tiles © Esri',
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
       },
     },
     layers: [
