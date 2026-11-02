@@ -23,6 +23,7 @@ import AccuracyIndicator from '../gps/AccuracyIndicator';
 import MapView from '../map/MapView';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
 import { useAuth } from '../../contexts/AuthContext';
+import { getPhotoUrl } from '../../utils/api';
 
 export default function RecordDetail({ record, onStatusChange, onDeleteRecord, isUpdating }) {
   const navigate = useNavigate();
@@ -309,8 +310,8 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
             {record.photos && record.photos.length > 0 ? (
               <div className="grid grid-cols-2 gap-2">
                 {record.photos.map((p, idx) => {
-                  const fullUrl = p.file_path;
-                  const thumbUrl = p.thumbnail_path || fullUrl;
+                  const fullUrl = getPhotoUrl(p.file_path);
+                  const thumbUrl = getPhotoUrl(p.thumbnail_path) || fullUrl;
                   return (
                     <div
                       key={idx}

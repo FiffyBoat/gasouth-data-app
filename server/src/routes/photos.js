@@ -46,7 +46,7 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE || '5242880', 10), // 5MB
+    fileSize: parseInt(process.env.MAX_FILE_SIZE || '15728640', 10), // 15MB max file size
   },
   fileFilter,
 });
@@ -136,9 +136,11 @@ router.post(
 );
 
 /**
- * DELETE /api/photos/:id
+ * DELETE /api/records/photos/:id
+ * Permanently removes a photo record from the DB and its file from disk.
+ * Collectors can only delete their own photos; supervisors+ can delete any.
  */
-router.delete('/:id', authenticate, auditLog('delete_photo', 'photo'), async (req, res) => {
+router.delete('/photos/:id', authenticate, auditLog('delete_photo', 'photo'), async (req, res) => {
   try {
     const { id } = req.params;
 

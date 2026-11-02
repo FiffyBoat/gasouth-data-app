@@ -73,7 +73,7 @@ app.get('/api/health', (req, res) => {
 // Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/records', recordsRoutes);
-app.use('/api/records', photosRoutes);
+app.use('/api/records', photosRoutes); // POST /api/records/:id/photos  +  DELETE /api/records/photos/:id
 app.use('/api/zones', zonesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/dashboard', dashboardRoutes);

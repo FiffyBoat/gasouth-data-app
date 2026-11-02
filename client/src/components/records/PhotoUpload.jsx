@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Image as ImageIcon, X, Upload, MapPin, Eye, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { watermarkImage } from '../../utils/watermark';
+import { getPhotoUrl } from '../../utils/api';
 
 export default function PhotoUpload({
   photos = [],
@@ -119,7 +120,7 @@ export default function PhotoUpload({
       {/* Grid of photo thumbnails */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {photos.map((photo, idx) => {
-          const imgSrc = photo.previewUrl || photo.thumbnail_path || photo.file_path;
+          const imgSrc = photo.previewUrl || getPhotoUrl(photo.thumbnail_path) || getPhotoUrl(photo.file_path);
           return (
             <div
               key={idx}
@@ -132,8 +133,8 @@ export default function PhotoUpload({
                 alt={`Capture ${idx + 1}`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 onError={(e) => {
-                  if (photo.file_path && e.target.src !== photo.file_path) {
-                    e.target.src = photo.file_path;
+                  if (photo.file_path && e.target.src !== getPhotoUrl(photo.file_path)) {
+                    e.target.src = getPhotoUrl(photo.file_path);
                   } else {
                     e.target.onerror = null;
                     e.target.src =
@@ -251,7 +252,7 @@ export default function PhotoUpload({
 
             <div className="overflow-auto p-2 flex items-center justify-center bg-black/60">
               <img
-                src={previewModalPhoto.previewUrl || previewModalPhoto.file_path}
+                src={previewModalPhoto.previewUrl || getPhotoUrl(previewModalPhoto.file_path)}
                 alt="Full Geotagged View"
                 className="max-h-[75vh] w-auto object-contain rounded-lg shadow-md"
               />

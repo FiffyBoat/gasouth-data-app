@@ -106,4 +106,24 @@ export const upload = (url, formData, onProgress) =>
     },
   });
 
+/**
+ * Resolves a photo path to a full accessible URL.
+ * Handles relative '/uploads/...', remote CDN URLs, and local blob URLs.
+ * @param {string} filePath - Path from database (e.g. '/uploads/abc.jpg')
+ * @returns {string} Fully resolved photo URL
+ */
+export function getPhotoUrl(filePath) {
+  if (!filePath) return '';
+  if (
+    filePath.startsWith('http://') ||
+    filePath.startsWith('https://') ||
+    filePath.startsWith('blob:') ||
+    filePath.startsWith('data:')
+  ) {
+    return filePath;
+  }
+  const baseUrl = import.meta.env.VITE_API_URL || '';
+  return `${baseUrl}${filePath.startsWith('/') ? filePath : '/' + filePath}`;
+}
+
 export default api;

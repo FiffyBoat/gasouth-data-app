@@ -20,7 +20,7 @@ import StatusBadge from '../records/StatusBadge';
 import AccuracyIndicator from '../gps/AccuracyIndicator';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
 import { useAuth } from '../../contexts/AuthContext';
-import api from '../../utils/api';
+import api, { getPhotoUrl } from '../../utils/api';
 
 export default function ReviewDetail({
   record,
@@ -403,8 +403,8 @@ export default function ReviewDetail({
         {record.photos && record.photos.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {record.photos.map((p, i) => {
-              const fullUrl = p.file_path;
-              const thumbUrl = p.thumbnail_path || fullUrl;
+              const fullUrl = getPhotoUrl(p.file_path);
+              const thumbUrl = getPhotoUrl(p.thumbnail_path) || fullUrl;
 
               return (
                 <a
