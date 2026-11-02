@@ -1,54 +1,69 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Box, Layers, Mountain, Compass, Maximize2 } from 'lucide-react';
+import { Box, Layers, Mountain, Eye, RefreshCw } from 'lucide-react';
 import { formatCoordinates } from '../../utils/geo';
 
-const STATUS_COLORS = {
-  draft: '#9ca3af',
-  submitted: '#3b82f6',
-  reviewed: '#8b5cf6',
-  approved: '#10b981',
-  rejected: '#ef4444',
-  flagged: '#f59e0b',
-};
-
-// 1. Standard OpenStreetMap street tiles
-const STREET_STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.de/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    },
+// Vibrant, high-contrast municipal status colors with strong glow
+const STATUS_CONFIG = {
+  approved: {
+    color: '#059669', // Emerald
+    glow: 'rgba(5, 150, 105, 0.6)',
+    label: 'Approved',
+    bg: '#ecfdf5',
+    text: '#065f46',
   },
-  layers: [
-    {
-      id: 'osm-layer',
-      type: 'raster',
-      source: 'osm',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-  ],
+  reviewed: {
+    color: '#7c3aed', // Purple
+    glow: 'rgba(124, 58, 237, 0.6)',
+    label: 'Reviewed',
+    bg: '#f5f3ff',
+    text: '#5b21b6',
+  },
+  submitted: {
+    color: '#2563eb', // Blue
+    glow: 'rgba(37, 99, 235, 0.6)',
+    label: 'Submitted',
+    bg: '#eff6ff',
+    text: '#1e40af',
+  },
+  flagged: {
+    color: '#d97706', // Amber
+    glow: 'rgba(217, 119, 6, 0.6)',
+    label: 'Flagged',
+    bg: '#fffbeb',
+    text: '#92400e',
+  },
+  rejected: {
+    color: '#dc2626', // Red
+    glow: 'rgba(220, 38, 38, 0.6)',
+    label: 'Rejected',
+    bg: '#fef2f2',
+    text: '#991b1b',
+  },
+  draft: {
+    color: '#6b7280', // Gray
+    glow: 'rgba(107, 114, 128, 0.4)',
+    label: 'Draft',
+    bg: '#f9fafb',
+    text: '#374151',
+  },
 };
 
-// 2. Ultra High-Resolution Hybrid Satellite with Street & Landmark Overlays (Google Imagery - Crystal Clear for Ga South)
+// 1. Ultra High-Resolution Google Hybrid Satellite (Super fast via 4 parallel CDN subdomains)
 const SATELLITE_HYBRID_STYLE = {
   version: 8,
   sources: {
     'satellite-hybrid': {
       type: 'raster',
       tiles: [
-        'https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
-        'https://mt1.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
-        'https://mt2.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
-        'https://mt3.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
+        'https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}',
+        'https://mt1.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}',
+        'https://mt2.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}',
+        'https://mt3.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}',
       ],
       tileSize: 256,
-      attribution: '&copy; Google Satellite Imagery & Hybrid Overlays',
+      attribution: '&copy; Google Satellite Imagery & Roads',
     },
   },
   layers: [
@@ -62,51 +77,26 @@ const SATELLITE_HYBRID_STYLE = {
   ],
 };
 
-// 3. Esri World Imagery Satellite (Alternative)
-const SATELLITE_ESRI_STYLE = {
+// 2. OpenStreetMap Street View
+const STREET_STYLE = {
   version: 8,
   sources: {
-    satellite: {
+    osm: {
       type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      ],
+      tiles: ['https://tile.openstreetmap.de/{z}/{x}/{y}.png'],
       tileSize: 256,
-      attribution: 'Tiles &copy; Esri &mdash; World Imagery',
-    },
-    labels: {
-      type: 'raster',
-      tiles: [
-        'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-      ],
-      tileSize: 256,
+      attribution: '&copy; OpenStreetMap contributors',
     },
   },
   layers: [
     {
-      id: 'satellite-layer',
+      id: 'osm-layer',
       type: 'raster',
-      source: 'satellite',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-    {
-      id: 'labels-layer',
-      type: 'raster',
-      source: 'labels',
+      source: 'osm',
       minzoom: 0,
       maxzoom: 19,
     },
   ],
-};
-
-// Global 3D Digital Elevation Model (DEM) for Real Topography / Hills
-const TERRAIN_SOURCE = {
-  type: 'raster-dem',
-  tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-  encoding: 'terrarium',
-  tileSize: 256,
-  maxzoom: 15,
 };
 
 export default function MapView({
@@ -114,9 +104,9 @@ export default function MapView({
   zones = [],
   onSelectRecord,
   selectedRecordId,
-  mapLayer = 'satellite', // default to high-res satellite
-  center = [-0.4285, 5.5350], // [lng, lat] Kasoa - Ngleshie Amanfro default
-  zoom = 13,
+  mapLayer = 'satellite',
+  center = [-0.4285, 5.5350], // [lng, lat] Ga South (Amanfro / Kasoa corridor)
+  zoom = 13.5,
   interactive = true,
   height = '100%',
   allow3DToggle = true,
@@ -132,60 +122,31 @@ export default function MapView({
     setActiveLayer(mapLayer);
   }, [mapLayer]);
 
-  const getStyleForLayer = (layerName) => {
-    if (layerName === 'street') return STREET_STYLE;
-    if (layerName === 'esri') return SATELLITE_ESRI_STYLE;
-    return SATELLITE_HYBRID_STYLE;
-  };
-
-  // Configure 3D Terrain & Sky on Map Style Load
-  const applyTerrainAndSky = (map, enable3D) => {
-    try {
-      if (enable3D) {
-        if (!map.getSource('terrain-dem')) {
-          map.addSource('terrain-dem', TERRAIN_SOURCE);
-        }
-        map.setTerrain({ source: 'terrain-dem', exaggeration: 1.6 });
-
-        // Add atmospheric sky if supported
-        if (typeof map.setSky === 'function') {
-          map.setSky({
-            'sky-color': '#1E3A8A',
-            'sky-horizon-blend': 0.6,
-            'horizon-color': '#FDE047',
-            'horizon-fog-blend': 0.8,
-            'fog-ground-blend': 0.4,
-          });
-        }
-      } else {
-        if (typeof map.setTerrain === 'function') {
-          map.setTerrain(null);
-        }
-      }
-    } catch (err) {
-      console.warn('3D Terrain setup notice:', err.message);
-    }
-  };
+  const currentStyle = useMemo(() => {
+    return activeLayer === 'street' ? STREET_STYLE : SATELLITE_HYBRID_STYLE;
+  }, [activeLayer]);
 
   // Initialize Map
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    const initialStyle = getStyleForLayer(activeLayer);
-
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: initialStyle,
+      style: currentStyle,
       center,
       zoom,
-      pitch: is3D ? 55 : 0,
-      bearing: is3D ? -15 : 0,
-      maxPitch: 85,
+      pitch: is3D ? 52 : 0,
+      bearing: is3D ? -12 : 0,
+      maxPitch: 65, // Limit pitch to 65 to avoid loading heavy horizon tiles
+      dragRotate: true,
+      touchPitch: true,
       interactive,
+      // Optimize rendering
+      fadeDuration: 100,
     });
 
     if (interactive) {
-      // Navigation control with 3D pitch ring
+      // 3D navigation control with visual tilt indicator
       map.addControl(
         new maplibregl.NavigationControl({
           visualizePitch: true,
@@ -194,12 +155,8 @@ export default function MapView({
         }),
         'top-right'
       );
-      map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left');
+      map.addControl(new maplibregl.ScaleControl({ maxWidth: 80, unit: 'metric' }), 'bottom-left');
     }
-
-    map.on('load', () => {
-      applyTerrainAndSky(map, is3D);
-    });
 
     mapRef.current = map;
 
@@ -212,16 +169,10 @@ export default function MapView({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    map.setStyle(currentStyle);
+  }, [currentStyle]);
 
-    const newStyle = getStyleForLayer(activeLayer);
-    map.setStyle(newStyle);
-
-    map.once('style.load', () => {
-      applyTerrainAndSky(map, is3D);
-    });
-  }, [activeLayer]);
-
-  // Toggle 3D Perspective Mode
+  // Fast, Smooth 3D Perspective Toggle
   const handleToggle3D = () => {
     const map = mapRef.current;
     if (!map) return;
@@ -230,25 +181,23 @@ export default function MapView({
     setIs3D(next3D);
 
     if (next3D) {
-      // Animate camera into 3D oblique perspective
+      // Smooth 3D camera flight into oblique perspective
       map.easeTo({
-        pitch: 58,
-        bearing: -15,
-        duration: 900,
+        pitch: 52,
+        bearing: -12,
+        duration: 800,
       });
-      applyTerrainAndSky(map, true);
     } else {
-      // Animate back to flat 2D top-down view
+      // Smooth flight back to 2D flat top-down view
       map.easeTo({
         pitch: 0,
         bearing: 0,
-        duration: 800,
+        duration: 700,
       });
-      applyTerrainAndSky(map, false);
     }
   };
 
-  // Render Zone Boundaries and Record Markers
+  // Render High-Visibility 3D Upright Billboard Markers
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -257,51 +206,124 @@ export default function MapView({
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Add markers for records
+    // Add high-visibility markers
     records.forEach((record) => {
       if (record.latitude == null || record.longitude == null) return;
 
       const isSelected = record.id === selectedRecordId;
-      const color = STATUS_COLORS[record.status] || '#6b7280';
+      const cfg = STATUS_CONFIG[record.status] || STATUS_CONFIG.draft;
 
+      // Outer container
       const el = document.createElement('div');
-      el.className = `cursor-pointer transition-transform duration-200 hover:scale-125 ${
-        isSelected ? 'scale-125 z-30' : 'z-10'
-      }`;
+      el.className = 'group cursor-pointer select-none';
+      el.style.transformOrigin = 'bottom center';
+      el.style.willChange = 'transform';
+
+      // HTML Structure:
+      // 1. Floating Billboard Status Badge (Stands tall in 3D, faces camera)
+      // 2. Vertical Stalk Needle (Lifts badge above roofs and terrain)
+      // 3. Ground Anchor Target Dot (Points to exact GPS coordinate)
       el.innerHTML = `
         <div style="
-          width: ${isSelected ? '26px' : '20px'};
-          height: ${isSelected ? '26px' : '20px'};
-          background: radial-gradient(circle at 35% 35%, white 10%, ${color} 80%);
-          border: 2px solid #ffffff;
-          border-radius: 50%;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.5), 0 0 8px ${color}88;
           display: flex;
+          flex-direction: column;
           align-items: center;
-          justify-content: center;
+          transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transform: ${isSelected ? 'scale(1.25)' : 'scale(1)'};
+          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.45));
         ">
-          <div style="width: 6px; height: 6px; background: white; border-radius: 50%;"></div>
+          <!-- Floating Status Badge -->
+          <div style="
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            background: ${cfg.color};
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 10px ${cfg.glow}, 0 2px 6px rgba(0,0,0,0.5);
+            white-space: nowrap;
+          ">
+            <span style="
+              width: 6px;
+              height: 6px;
+              border-radius: 50%;
+              background: #ffffff;
+              display: inline-block;
+              box-shadow: 0 0 4px rgba(255,255,255,0.8);
+            "></span>
+            <span>${cfg.label}</span>
+          </div>
+
+          <!-- Vertical Stalk Needle (Lifts into 3D Space) -->
+          <div style="
+            width: 2.5px;
+            height: 16px;
+            background: linear-gradient(to bottom, #ffffff 10%, ${cfg.color} 90%);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+          "></div>
+
+          <!-- Ground Anchor Pinpoint -->
+          <div style="
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: ${cfg.color};
+            border: 2px solid #ffffff;
+            box-shadow: 0 0 6px ${cfg.color}, 0 2px 4px rgba(0,0,0,0.6);
+            margin-top: -2px;
+          "></div>
         </div>
       `;
 
-      el.addEventListener('click', () => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (onSelectRecord) {
           onSelectRecord(record);
         }
       });
 
-      const popup = new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(`
-        <div style="font-family: sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.4;">
-          <div style="font-weight: 700; color: #111827; font-size: 13px;">${record.owner_name || record.module}</div>
-          <div style="color: #4b5563; font-family: monospace; font-size: 11px;">${formatCoordinates(record.latitude, record.longitude)}</div>
-          ${record.ghana_post_address ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px;">🇬🇭 ${record.ghana_post_address}</div>` : ''}
-          <div style="margin-top: 4px; display: inline-block; padding: 2px 6px; border-radius: 9999px; background-color: ${color}20; color: ${color}; font-weight: 700; font-size: 10px; text-transform: uppercase;">
-            ${record.status}
+      // Interactive Popup
+      const popup = new maplibregl.Popup({
+        offset: [0, -32],
+        closeButton: false,
+        className: 'custom-map-popup',
+      }).setHTML(`
+        <div style="font-family: sans-serif; font-size: 12px; padding: 6px 8px; min-width: 160px; line-height: 1.4;">
+          <div style="font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 2px;">
+            ${record.owner_name || record.module}
+          </div>
+          <div style="color: #4b5563; font-family: monospace; font-size: 11px;">
+            ${formatCoordinates(record.latitude, record.longitude)}
+          </div>
+          ${
+            record.ghana_post_address
+              ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px; margin-top: 2px;">🇬🇭 ${record.ghana_post_address}</div>`
+              : ''
+          }
+          <div style="margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: ${cfg.bg}; color: ${cfg.text}; font-weight: 700; font-size: 10px; border: 1px solid ${cfg.color}40;">
+            <span style="width: 5px; height: 5px; border-radius: 50%; background: ${cfg.color};"></span>
+            ${cfg.label}
           </div>
         </div>
       `);
 
-      const marker = new maplibregl.Marker({ element: el })
+      // KEY 3D VISIBILITY FIX:
+      // anchor: 'bottom' -> pinpoint touches ground exactly
+      // pitchAlignment: 'viewport' -> stands vertically upright facing camera in 3D!
+      // rotationAlignment: 'viewport' -> stays oriented towards viewer when map rotates!
+      const marker = new maplibregl.Marker({
+        element: el,
+        anchor: 'bottom',
+        pitchAlignment: 'viewport',
+        rotationAlignment: 'viewport',
+      })
         .setLngLat([record.longitude, record.latitude])
         .setPopup(popup)
         .addTo(map);
@@ -314,24 +336,25 @@ export default function MapView({
     <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200" style={{ height }}>
       <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
 
-      {/* Floating 3D / 2D Perspective Toggle Pill */}
+      {/* Floating 3D / 2D Perspective Toggle & Satellite Switcher */}
       {interactive && allow3DToggle && (
         <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1 rounded-xl shadow-lg border border-gray-200 text-xs">
+          {/* 3D Perspective Toggle Button */}
           <button
             type="button"
             onClick={handleToggle3D}
             className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
               is3D
-                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-sm ring-2 ring-purple-400/50'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md ring-2 ring-purple-400/50'
                 : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
             }`}
-            title="Toggle 3D Angled Perspective and Terrain Elevation"
+            title="Toggle between 3D Angled Perspective and 2D Flat View"
           >
-            <Box className={`w-3.5 h-3.5 ${is3D ? 'animate-pulse text-white' : 'text-gray-500'}`} />
-            <span>{is3D ? '3D Active' : '3D View'}</span>
+            <Box className={`w-3.5 h-3.5 ${is3D ? 'text-white' : 'text-gray-500'}`} />
+            <span>{is3D ? '3D Active (52°)' : '3D View'}</span>
           </button>
 
-          {/* Satellite Layer Switcher Pill */}
+          {/* Satellite Layer Switcher */}
           <button
             type="button"
             onClick={() => setActiveLayer(activeLayer === 'street' ? 'satellite' : 'street')}
@@ -348,11 +371,24 @@ export default function MapView({
         </div>
       )}
 
-      {/* 3D Indicator Badge in Bottom-Right */}
-      {is3D && (
-        <div className="absolute bottom-3 right-3 z-10 pointer-events-none bg-black/75 backdrop-blur-sm text-white px-2.5 py-1 rounded-full text-[10px] font-mono font-medium flex items-center gap-1 border border-white/20">
-          <Mountain className="w-3 h-3 text-amber-400" />
-          <span>3D Pitch 58° • DEM Terrain 1.6x</span>
+      {/* 3D Status Legend Pill in Bottom-Left */}
+      {interactive && (
+        <div className="hidden sm:flex absolute bottom-3 left-3 z-10 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 text-white text-[10px] items-center gap-3 font-semibold pointer-events-none">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Approved
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-purple-500"></span> Reviewed
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span> Submitted
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500"></span> Flagged
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-red-500"></span> Rejected
+          </span>
         </div>
       )}
     </div>
