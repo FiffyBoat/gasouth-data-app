@@ -165,6 +165,13 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       }
     }
 
+    if (ghanaPostAddress && ghanaPostAddress.trim()) {
+      const cleanGP = ghanaPostAddress.trim().toUpperCase();
+      if (!/^GS-\d{4}-\d{4}$/.test(cleanGP) && !/^GS\d{8}$/.test(cleanGP)) {
+        errors.ghana_post_address = 'Ghana Post Address must be in GS-XXXX-XXXX format (e.g. GS-0124-5678)';
+      }
+    }
+
     if (moduleType === 'property') {
       if (!attributes.property_address || !attributes.property_address.trim()) {
         errors.property_address = 'Property address (House / Plot No.) is required';
@@ -250,6 +257,9 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
             </p>
             {formErrors.gps && (
               <p className="mt-1 font-semibold text-red-800 underline">⚠️ {formErrors.gps}</p>
+            )}
+            {formErrors.ghana_post_address && (
+              <p className="mt-1 font-semibold text-red-800 underline">⚠️ {formErrors.ghana_post_address}</p>
             )}
           </div>
         </div>

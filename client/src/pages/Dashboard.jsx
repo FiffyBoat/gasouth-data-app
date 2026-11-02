@@ -8,6 +8,7 @@ import {
 import StatsCards from '../components/dashboard/StatsCards';
 import CoverageMap from '../components/dashboard/CoverageMap';
 import CollectorStats from '../components/dashboard/CollectorStats';
+import CollectorDailyQuota from '../components/dashboard/CollectorDailyQuota';
 import RecentActivity from '../components/dashboard/RecentActivity';
 // import BudgetRevenueSummary from '../components/dashboard/BudgetRevenueSummary'; // FUTURE BILLING
 import api from '../utils/api';
@@ -140,6 +141,11 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Collector Daily Target & Quota Tracker */}
+      {hasRole('collector') && (
+        <CollectorDailyQuota stats={stats} collectorName={user?.full_name} />
+      )}
 
       {/* Top Metrics Cards (Role-Tailored) */}
       <StatsCards stats={stats} />

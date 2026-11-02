@@ -8,6 +8,7 @@ import {
   Building,
   ShieldCheck,
   Award,
+  Target,
   /* FUTURE BILLING ICONS — uncomment when billing module is activated:
   Coins,
   Landmark,
@@ -224,11 +225,11 @@ export default function StatsCards({ stats = {} }) {
         subtitle: `${stats.submitted_count || 0} supervisor, ${stats.reviewed_count || 0} budget`,
       },
       {
-        label: 'Drafts in Progress',
-        value: stats.draft_count || 0,
-        icon: FileText,
-        color: 'text-gray-700 bg-gray-50 border-gray-200',
-        subtitle: 'Saved locally for submission',
+        label: "Today's Output",
+        value: `${stats.today_count || 0} / ${stats.daily_target || 25}`,
+        icon: Target,
+        color: 'text-amber-700 bg-amber-50 border-amber-200',
+        subtitle: `${Math.round(((stats.today_count || 0) / (stats.daily_target || 25)) * 100)}% of daily quota`,
       },
       {
         label: 'Correction Needed',

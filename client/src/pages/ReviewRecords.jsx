@@ -100,6 +100,25 @@ export default function ReviewRecords() {
     }
   };
 
+  const handleBatchStatusChange = async (ids, status, comment = null) => {
+    if (!ids || ids.length === 0) return;
+    try {
+      setProcessing(true);
+      const res = await api.post('/api/records/batch-status', {
+        record_ids: ids,
+        status,
+        comment,
+      });
+      alert(res.data?.message || `Successfully updated ${ids.length} records!`);
+      await fetchRecordsToReview();
+    } catch (err) {
+      console.error('Batch status update failed:', err);
+      alert(err.response?.data?.error || 'Failed to update records in batch.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Review Stage Navigation Pills */}
@@ -156,12 +175,14 @@ export default function ReviewRecords() {
 
       <ReviewPanel
         records={records}
+        stageFilter={stageFilter}
         selectedRecord={selectedRecord}
         onSelectRecord={(r) => setSelectedRecordId(r.id)}
         onEndorse={(id, note) => handleStatusChange(id, 'reviewed', note || 'Reviewed and endorsed by Data Supervisor')}
         onApprove={(id) => handleStatusChange(id, 'approved', 'Certified & Approved by Budget Director')}
         onReject={(id, comment) => handleStatusChange(id, 'rejected', comment)}
         onFlag={(id, comment) => handleStatusChange(id, 'flagged', comment)}
+        onBatchAction={handleBatchStatusChange}
         isProcessing={processing || loadingDetail}
         onRecordUpdated={(id, updatedRec) => {
           setSelectedRecord(updatedRec);

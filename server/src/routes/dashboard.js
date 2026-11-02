@@ -17,6 +17,7 @@ router.get('/stats', authenticate, async (req, res) => {
     const statsSql = `
       SELECT
         COUNT(*)::int as total_records,
+        COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END)::int as today_count,
         COUNT(CASE WHEN status = 'approved' THEN 1 END)::int as approved_count,
         COUNT(CASE WHEN status = 'reviewed' THEN 1 END)::int as reviewed_count,
         COUNT(CASE WHEN status = 'submitted' THEN 1 END)::int as submitted_count,
@@ -39,6 +40,7 @@ router.get('/stats', authenticate, async (req, res) => {
 
     res.json({
       ...statsRes.rows[0],
+      daily_target: 25,
       total_zones: zonesRes.rows[0].total_zones,
       total_users: usersRes.rows[0].total_users,
     });

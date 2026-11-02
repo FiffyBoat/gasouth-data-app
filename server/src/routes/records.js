@@ -350,6 +350,86 @@ router.get('/export/csv', authenticate, async (req, res) => {
 });
 
 /**
+ * GET /api/records/export/geojson
+ * Exports records as a standard GeoJSON FeatureCollection for QGIS / Town Planning / GIS software
+ * Query params: status, module, zone_id
+ */
+router.get('/export/geojson', authenticate, async (req, res) => {
+  try {
+    const { status, module: modFilter, zone_id } = req.query;
+
+    let sql = `
+      SELECT r.*, z.name as zone_name
+      FROM records r
+      LEFT JOIN zones z ON r.zone_id = z.id
+      WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL
+    `;
+    const params = [];
+
+    if (status) {
+      params.push(status);
+      sql += ` AND r.status = $${params.length}`;
+    }
+    if (modFilter) {
+      params.push(modFilter);
+      sql += ` AND r.module = $${params.length}`;
+    }
+    if (zone_id) {
+      params.push(zone_id);
+      sql += ` AND r.zone_id = $${params.length}`;
+    }
+
+    sql += ' ORDER BY r.created_at DESC';
+
+    const result = await query(sql, params);
+    const rows = result.rows || [];
+
+    const features = rows.map((r) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [parseFloat(r.longitude), parseFloat(r.latitude)],
+      },
+      properties: {
+        id: r.id,
+        module: r.module,
+        owner_name: r.owner_name,
+        owner_phone: r.owner_phone,
+        ghana_post_address: r.ghana_post_address,
+        status: r.status,
+        accuracy_m: r.accuracy_m,
+        capture_method: r.capture_method,
+        zone_id: r.zone_id,
+        zone_name: r.zone_name,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        ...(r.attributes || {}),
+      },
+    }));
+
+    const geojson = {
+      type: 'FeatureCollection',
+      name: 'Ga_South_Municipal_Assembly_Field_Records',
+      crs: {
+        type: 'name',
+        properties: { name: 'urn:ogc:def:crs:OGC:1.3:CRS84' },
+      },
+      features,
+    };
+
+    res.setHeader('Content-Type', 'application/geo+json');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="gasouth_spatial_records_${status || 'all'}_${Date.now()}.geojson"`
+    );
+    res.json(geojson);
+  } catch (err) {
+    console.error('GeoJSON Export error:', err);
+    res.status(500).json({ error: 'Failed to generate GeoJSON export' });
+  }
+});
+
+/**
  * GET /api/records/:id
  * Retrieve a single record with photos and history
  */
@@ -703,6 +783,115 @@ router.patch(
     } catch (err) {
       console.error('Error updating record attributes:', err);
       res.status(500).json({ error: 'Failed to update record attributes' });
+    }
+  }
+);
+
+/**
+ * POST /api/records/batch-status
+ * Bulk endorse or approve multiple records at once (Supervisor or Budget Director)
+ * Body: { record_ids: string[], status: 'reviewed' | 'approved', comment?: string }
+ */
+router.post(
+  '/batch-status',
+  authenticate,
+  auditLog('batch_status_change', 'record'),
+  async (req, res) => {
+    try {
+      const { record_ids, status: targetStatus, comment } = req.body;
+
+      if (!Array.isArray(record_ids) || record_ids.length === 0) {
+        return res.status(400).json({ error: 'record_ids array is required' });
+      }
+
+      if (!['reviewed', 'approved'].includes(targetStatus)) {
+        return res.status(400).json({ error: 'Batch status update only supports reviewed or approved' });
+      }
+
+      // Role check
+      if (req.user.role === 'supervisor' && targetStatus !== 'reviewed') {
+        return res.status(403).json({ error: 'Supervisors can only batch-endorse to reviewed status' });
+      }
+      if (req.user.role === 'budget_director' && targetStatus !== 'approved') {
+        return res.status(403).json({ error: 'Budget Director can only batch-certify to approved status' });
+      }
+      if (req.user.role === 'collector') {
+        return res.status(403).json({ error: 'Collectors cannot perform batch reviews' });
+      }
+
+      const client = await getClient();
+      let updatedCount = 0;
+      const failed = [];
+
+      try {
+        await client.query('BEGIN');
+
+        for (const id of record_ids) {
+          const recRes = await client.query('SELECT * FROM records WHERE id = $1', [id]);
+          if (recRes.rows.length === 0) {
+            failed.push({ id, error: 'Not found' });
+            continue;
+          }
+          const rec = recRes.rows[0];
+
+          if (targetStatus === 'reviewed' && rec.status !== 'submitted') {
+            failed.push({ id, error: `Cannot review record in status ${rec.status}` });
+            continue;
+          }
+          if (targetStatus === 'approved' && rec.status !== 'reviewed') {
+            failed.push({ id, error: `Cannot approve record in status ${rec.status}` });
+            continue;
+          }
+
+          const updateSql = `
+            UPDATE records
+            SET
+              status = $1,
+              reviewed_by = $2,
+              review_comment = $3,
+              review_time = now(),
+              updated_at = now()
+            WHERE id = $4
+            RETURNING *;
+          `;
+          const updated = await client.query(updateSql, [
+            targetStatus,
+            req.user.id,
+            comment || (targetStatus === 'reviewed' ? 'Batch endorsed by Data Supervisor' : 'Batch certified by Budget Directorate'),
+            id,
+          ]);
+
+          const vRes = await client.query(
+            'SELECT COALESCE(MAX(version_number), 0) + 1 as next_v FROM record_versions WHERE record_id = $1',
+            [id]
+          );
+          const nextVersion = vRes.rows[0].next_v;
+
+          await client.query(
+            `INSERT INTO record_versions (record_id, version_number, data, changed_by)
+             VALUES ($1, $2, $3, $4)`,
+            [id, nextVersion, JSON.stringify(updated.rows[0]), req.user.id]
+          );
+
+          updatedCount++;
+        }
+
+        await client.query('COMMIT');
+        res.json({
+          message: `Successfully updated ${updatedCount} records to ${targetStatus}`,
+          updatedCount,
+          failedCount: failed.length,
+          failed,
+        });
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Error in batch status update:', err);
+      res.status(500).json({ error: 'Failed to update records in batch' });
     }
   }
 );

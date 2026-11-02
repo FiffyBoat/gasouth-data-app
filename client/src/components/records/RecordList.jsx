@@ -12,6 +12,7 @@ import {
   Trash2,
   Download,
   CheckCircle2,
+  Globe,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
@@ -127,6 +128,60 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
     }
   };
 
+  const handleExportGeoJSON = async () => {
+    try {
+      const res = await api.get('/api/records/export/geojson', { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/geo+json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gasouth_records_spatial_${Date.now()}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.warn('Backend GeoJSON export failed, generating from current view:', err);
+      const validRecords = records.filter((r) => r.latitude && r.longitude);
+      if (validRecords.length === 0) {
+        alert('No records with valid GPS coordinates available to export.');
+        return;
+      }
+      const geojson = {
+        type: 'FeatureCollection',
+        name: 'Ga_South_Municipal_Assembly_Field_Records',
+        features: validRecords.map((r) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(r.longitude), parseFloat(r.latitude)],
+          },
+          properties: {
+            id: r.id,
+            module: r.module,
+            owner_name: r.owner_name,
+            owner_phone: r.owner_phone,
+            ghana_post_address: r.ghana_post_address,
+            status: r.status,
+            accuracy_m: r.accuracy_m,
+            zone_name: r.zone_name,
+            created_at: r.created_at,
+            ...(r.attributes || {}),
+          },
+        })),
+      };
+      const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `gasouth_records_spatial_${Date.now()}.geojson`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+  };
+
   if (loading) {
     return (
       <div className="py-12 flex flex-col items-center justify-center text-gray-400 space-y-2">
@@ -151,7 +206,17 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportGeoJSON}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+            title="Download GeoJSON format for QGIS / ArcGIS / Town Planning Directorate"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>Export GeoJSON (QGIS)</span>
+          </button>
+
           <button
             type="button"
             onClick={handleExportApprovedCSV}

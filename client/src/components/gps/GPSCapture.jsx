@@ -8,10 +8,25 @@ import {
   AlertCircle,
   HelpCircle,
   Navigation,
+  BadgeCheck,
 } from 'lucide-react';
 import AccuracyIndicator from './AccuracyIndicator';
 import ManualPinMap from './ManualPinMap';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
+
+/**
+ * Validates a Ghana Post GPS Digital Address.
+ * Format: GS-XXXX-XXXX  (GS prefix, 4 digits, hyphen, 4 digits)
+ * Returns null if empty (optional field), 'invalid' if bad format, 'valid' if correct.
+ */
+function validateGhanaPost(value) {
+  if (!value || !value.trim()) return null; // optional
+  const clean = value.trim().toUpperCase();
+  // Accept formats: GS-0000-0000  or  GS00000000
+  if (/^GS-\d{4}-\d{4}$/.test(clean)) return 'valid';
+  if (/^GS\d{8}$/.test(clean)) return 'valid'; // no-hyphen variant
+  return 'invalid';
+}
 
 export default function GPSCapture({
   latitude,
@@ -31,6 +46,7 @@ export default function GPSCapture({
   const [showManualModal, setShowManualModal] = useState(false);
 
   const hasLocation = latitude != null && longitude != null;
+  const ghanaPostStatus = validateGhanaPost(ghanaPostAddress);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
@@ -145,18 +161,45 @@ export default function GPSCapture({
           <span>Place or adjust pin on interactive map</span>
         </button>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label htmlFor="ghana_post" className="text-gray-500 shrink-0">
-            Ghana Post Digital Address:
-          </label>
-          <input
-            id="ghana_post"
-            type="text"
-            placeholder="e.g. GS-0124-5678"
-            value={ghanaPostAddress || ''}
-            onChange={(e) => onGhanaPostChange(e.target.value.toUpperCase())}
-            className="px-2.5 py-1 text-xs border border-gray-300 rounded-lg focus:ring-1 focus:ring-primary-500 focus:outline-none uppercase font-mono w-32"
-          />
+        <div className="flex flex-col gap-1 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
+            <label htmlFor="ghana_post" className="text-gray-500 shrink-0">
+              Ghana Post Digital Address:
+            </label>
+            <div className="relative">
+              <input
+                id="ghana_post"
+                type="text"
+                placeholder="e.g. GS-0124-5678"
+                value={ghanaPostAddress || ''}
+                onChange={(e) => onGhanaPostChange(e.target.value.toUpperCase())}
+                maxLength={12}
+                className={`px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:outline-none uppercase font-mono w-36 pr-7 ${
+                  ghanaPostStatus === 'valid'
+                    ? 'border-emerald-400 focus:ring-emerald-400 bg-emerald-50 text-emerald-800'
+                    : ghanaPostStatus === 'invalid'
+                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50 text-rose-800'
+                    : 'border-gray-300 focus:ring-primary-500'
+                }`}
+              />
+              {ghanaPostStatus === 'valid' && (
+                <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2" />
+              )}
+              {ghanaPostStatus === 'invalid' && (
+                <AlertCircle className="w-3.5 h-3.5 text-rose-500 absolute right-2 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
+          </div>
+          {ghanaPostStatus === 'invalid' && (
+            <p className="text-[10px] text-rose-600 font-medium pl-1">
+              ⚠ Must be GS-XXXX-XXXX format (e.g. GS-0124-5678)
+            </p>
+          )}
+          {ghanaPostStatus === 'valid' && (
+            <p className="text-[10px] text-emerald-600 font-medium pl-1">
+              ✓ Valid Ghana Post Digital Address
+            </p>
+          )}
         </div>
       </div>
 
