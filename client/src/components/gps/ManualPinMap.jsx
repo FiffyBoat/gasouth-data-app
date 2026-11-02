@@ -1,12 +1,60 @@
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
-import { MapPin, Check, X } from 'lucide-react';
+import { MapPin, Check, X, Layers } from 'lucide-react';
 import { formatCoordinates } from '../../utils/geo';
+
+const STREET_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: 'raster',
+      tiles: ['https://tile.openstreetmap.de/{z}/{x}/{y}.png'],
+      tileSize: 256,
+      attribution: '&copy; OpenStreetMap contributors',
+    },
+  },
+  layers: [
+    {
+      id: 'osm-layer',
+      type: 'raster',
+      source: 'osm',
+      minzoom: 0,
+      maxzoom: 19,
+    },
+  ],
+};
+
+const SATELLITE_HYBRID_STYLE = {
+  version: 8,
+  sources: {
+    'satellite-hybrid': {
+      type: 'raster',
+      tiles: [
+        'https://mt0.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
+        'https://mt1.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
+        'https://mt2.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
+        'https://mt3.google.com/vt/lyrs=y&hl=en&x={x}&y={y}&z={z}&s=Ga',
+      ],
+      tileSize: 256,
+      attribution: '&copy; Google Satellite Imagery',
+    },
+  },
+  layers: [
+    {
+      id: 'satellite-hybrid-layer',
+      type: 'raster',
+      source: 'satellite-hybrid',
+      minzoom: 0,
+      maxzoom: 20,
+    },
+  ],
+};
 
 export default function ManualPinMap({ initialLat, initialLng, onConfirm, onCancel }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const [isSatellite, setIsSatellite] = useState(true); // default to satellite so roofs/compounds are visible
 
   const defaultLat = initialLat || 5.5350;
   const defaultLng = initialLng || -0.4285;
@@ -16,33 +64,11 @@ export default function ManualPinMap({ initialLat, initialLng, onConfirm, onCanc
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    // Standard OpenStreetMap tiles through standard tile caching mirror (OpenStreetMap DE/FR)
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: 'raster',
-            tiles: [
-              'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
-            ],
-            tileSize: 256,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          },
-        },
-        layers: [
-          {
-            id: 'osm-layer',
-            type: 'raster',
-            source: 'osm',
-            minzoom: 0,
-            maxzoom: 19,
-          },
-        ],
-      },
+      style: isSatellite ? SATELLITE_HYBRID_STYLE : STREET_STYLE,
       center: [defaultLng, defaultLat],
-      zoom: 15,
+      zoom: 16,
     });
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
@@ -72,6 +98,14 @@ export default function ManualPinMap({ initialLat, initialLng, onConfirm, onCanc
     };
   }, []);
 
+  const handleToggleLayer = () => {
+    const next = !isSatellite;
+    setIsSatellite(next);
+    if (mapRef.current) {
+      mapRef.current.setStyle(next ? SATELLITE_HYBRID_STYLE : STREET_STYLE);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-2xl h-[85vh] overflow-hidden">
@@ -97,6 +131,16 @@ export default function ManualPinMap({ initialLat, initialLng, onConfirm, onCanc
         {/* Map View */}
         <div className="relative flex-1 bg-gray-100">
           <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+
+          {/* Layer switcher */}
+          <button
+            type="button"
+            onClick={handleToggleLayer}
+            className="absolute top-3 left-3 z-10 px-3 py-1.5 bg-white/95 backdrop-blur-sm hover:bg-white text-gray-800 rounded-xl shadow-md border border-gray-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+          >
+            <Layers className="w-3.5 h-3.5 text-primary-600" />
+            <span>{isSatellite ? 'Street Map' : 'Satellite (Roofs & Roads)'}</span>
+          </button>
         </div>
 
         {/* Footer with Coords & Action Buttons */}

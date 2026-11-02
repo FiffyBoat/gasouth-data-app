@@ -72,10 +72,10 @@ export default function MapFilters({
           type="button"
           onClick={onToggleLayer}
           className="px-3 py-1.5 border border-gray-200 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium flex items-center gap-1.5 transition-colors"
-          title="Toggle Street and Satellite maps"
+          title="Toggle between High-Res Satellite and Street Map"
         >
           <Layers className="w-3.5 h-3.5 text-primary-600" />
-          <span className="capitalize">{mapLayer === 'street' ? 'Satellite' : 'Street'} View</span>
+          <span>{mapLayer === 'satellite' ? 'Street View' : 'High-Res Satellite'}</span>
         </button>
 
         {/* Refresh button */}

@@ -8,7 +8,7 @@ export default function MapExplorer() {
   const [records, setRecords] = useState([]);
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [mapLayer, setMapLayer] = useState('street');
+  const [mapLayer, setMapLayer] = useState('satellite');
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   const [filters, setFilters] = useState({
