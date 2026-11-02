@@ -17,6 +17,7 @@ import GeofenceWarning from '../gps/GeofenceWarning';
 import PhotoUpload from './PhotoUpload';
 import AutocompleteInput, { seedSuggestions } from './AutocompleteInput';
 import useGeolocation from '../../hooks/useGeolocation';
+import { useAuth } from '../../contexts/AuthContext';
 import { saveFormState, loadFormState, clearFormState } from '../../utils/autosave';
 
 const FORM_STORAGE_KEY = 'zebra_capture_form';
@@ -63,6 +64,7 @@ seedSuggestions('services_provided', [
 ]);
 
 export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
+  const { user } = useAuth();
   const geo = useGeolocation();
 
   const [moduleType, setModuleType] = useState(initialRecord?.module || 'property');
@@ -703,6 +705,14 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
           onAddPhoto={handleAddPhoto}
           onRemovePhoto={handleRemovePhoto}
           maxPhotos={4}
+          location={{
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            accuracy: geo.accuracy,
+          }}
+          ghanaPostAddress={ghanaPostAddress}
+          collectorName={user?.full_name}
+          moduleType={moduleType}
         />
       </div>
 
