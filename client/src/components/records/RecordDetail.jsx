@@ -45,9 +45,11 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
   const canSupervisorReview = isSupervisor && record.status === 'submitted';
   const canBudgetApprove = isBudgetDirector && record.status === 'reviewed';
 
-  const rateableVal = parseFloat(record.attributes?.rateable_value) || 0;
-  const rateImpost = parseFloat(record.attributes?.rate_impost) || 0;
-  const annualBill = rateableVal > 0 && rateImpost > 0 ? (rateableVal * rateImpost).toFixed(2) : null;
+  // Future Billing Feature (Commented out for data-collection-only phase)
+  // const rateableVal = parseFloat(record.attributes?.rateable_value) || 0;
+  // const rateImpost = parseFloat(record.attributes?.rate_impost) || 0;
+  // const annualBill = rateableVal > 0 && rateImpost > 0 ? (rateableVal * rateImpost).toFixed(2) : null;
+  const annualBill = null;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -242,19 +244,21 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-2">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 capitalize">
-                {record.module.replace('_', ' ')} Assessment Details
+                {record.module.replace('_', ' ')} Field Specifications
               </h3>
+              {/* Future Annual Bill badge - commented out for data collection mode
               {annualBill && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   <Calculator className="w-3.5 h-3.5" />
                   Annual Bill: GH¢ {annualBill}
                 </span>
               )}
+              */}
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
               {Object.entries(record.attributes || {})
-                .filter(([k]) => !['groups', 'landmark', 'street_name', 'collection_area', 'sub_collection_area'].includes(k))
+                .filter(([k]) => !['groups', 'landmark', 'street_name', 'collection_area', 'sub_collection_area', 'valuation_number', 'rateable_value', 'rate_impost', 'use_code'].includes(k))
                 .map(([key, val]) => (
                   <div key={key}>
                     <span className="text-gray-400 block mb-0.5 capitalize">

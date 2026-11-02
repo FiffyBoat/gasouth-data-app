@@ -3,16 +3,13 @@ import { Link } from 'react-router-dom';
 import {
   ShieldCheck,
   Award,
-  Download,
-  Coins,
   ArrowRight,
-  TrendingUp,
 } from 'lucide-react';
 import StatsCards from '../components/dashboard/StatsCards';
 import CoverageMap from '../components/dashboard/CoverageMap';
 import CollectorStats from '../components/dashboard/CollectorStats';
 import RecentActivity from '../components/dashboard/RecentActivity';
-import BudgetRevenueSummary from '../components/dashboard/BudgetRevenueSummary';
+// import BudgetRevenueSummary from '../components/dashboard/BudgetRevenueSummary'; // FUTURE BILLING
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -53,6 +50,10 @@ export default function Dashboard() {
     fetchDashboard();
   }, []);
 
+  /* ========================================================================
+     FUTURE BILLING — handleExportApprovedCSV
+     Generates and downloads a certified revenue register CSV for Budget Director.
+     Commented out for data-collection-only phase. Re-enable when billing is active.
   const handleExportApprovedCSV = async () => {
     try {
       const res = await api.get('/api/records/export/csv?status=approved', { responseType: 'blob' });
@@ -70,6 +71,7 @@ export default function Dashboard() {
       alert('Failed to download certified revenue register.');
     }
   };
+     ======================================================================== */
 
   const isBudgetDirector = hasRole('budget_director');
   const isAdmin = hasRole('admin');
@@ -82,7 +84,7 @@ export default function Dashboard() {
         <div>
             <span className="text-[11px] uppercase tracking-widest font-bold text-amber-300 block">
               {isBudgetDirector
-                ? 'Budget & Revenue Directorate • Municipal Assembly'
+                ? 'Budget & Planning Directorate • Municipal Assembly'
                 : isSupervisor
                 ? 'Data Supervisory & Quality Control Command'
                 : 'Ga South Municipal Assembly • Ngleshie Amanfro DCS'}
@@ -111,6 +113,10 @@ export default function Dashboard() {
                 <span>Review & Authorize ({stats.reviewed_count || 0})</span>
               </Link>
 
+              {/* ================================================================
+                  FUTURE BILLING — Certified Register CSV Export Button
+                  Commented out for data-collection-only phase.
+                  Re-enable alongside handleExportApprovedCSV when billing is active:
               <button
                 type="button"
                 onClick={handleExportApprovedCSV}
@@ -119,6 +125,7 @@ export default function Dashboard() {
                 <Download className="w-3.5 h-3.5" />
                 <span>Certified Register (CSV)</span>
               </button>
+                  ================================================================ */}
             </>
           )}
 
@@ -137,10 +144,18 @@ export default function Dashboard() {
       {/* Top Metrics Cards (Role-Tailored) */}
       <StatsCards stats={stats} />
 
-      {/* Budget & Revenue Intelligence Section (for Budget Director and Admin) */}
+      {/* 
+        ========================================================================
+        FUTURE BILLING & REVENUE SUMMARY MODULE
+        Commented out for pure data-collection phase. To re-enable billing forecasts,
+        uncomment the block below:
+        ========================================================================
+      */}
+      {/*
       {(isBudgetDirector || isAdmin) && (
         <BudgetRevenueSummary stats={stats} coverage={coverage} />
       )}
+      */}
 
       {/* Operational Grid: Coverage Map & Activity / Collector Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

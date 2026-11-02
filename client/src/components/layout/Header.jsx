@@ -13,7 +13,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const ROUTE_LABELS = {
   '': 'Dashboard',
   capture: 'Capture Record',
-  records: 'Revenue Records',
+  records: 'Field Records',
   map: 'Map Explorer',
   review: 'Review & Approvals',
   admin: 'Administration',

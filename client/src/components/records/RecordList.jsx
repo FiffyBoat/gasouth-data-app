@@ -35,7 +35,7 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `approved_revenue_records_${Date.now()}.csv`;
+      a.download = `approved_field_records_${Date.now()}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -45,7 +45,7 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
       const approvedRecords = records.filter((r) => r.status === 'approved');
 
       if (approvedRecords.length === 0) {
-        alert('There are no approved records available to export yet.');
+        alert('There are no approved field records available to export yet.');
         return;
       }
 
@@ -65,10 +65,14 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
         'Sub Collection Area',
         'UPN',
         'Property Address',
+        /* ================================================================
+           FUTURE BILLING COLUMNS — Commented out for data-collection phase
+           Re-enable when billing module is activated:
         'Valuation Number',
         'Use Code',
         'Rateable Value (GHS)',
         'Rate Impost',
+           ================================================================ */
         'Business Type',
         'Business Category',
         'Services Provided',
@@ -95,10 +99,14 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
           `"${(a.sub_collection_area || '').replace(/"/g, '""')}"`,
           `"${(a.upn || '').replace(/"/g, '""')}"`,
           `"${(a.property_address || '').replace(/"/g, '""')}"`,
+          /* ================================================================
+             FUTURE BILLING DATA COLUMNS — Commented out for data-collection phase
+             Re-enable alongside header columns above when billing is activated:
           `"${(a.valuation_number || '').replace(/"/g, '""')}"`,
           `"${(a.use_code || '').replace(/"/g, '""')}"`,
           a.rateable_value || '',
           a.rate_impost || '',
+             ================================================================ */
           `"${(a.business_type || '').replace(/"/g, '""')}"`,
           `"${(a.business_category || '').replace(/"/g, '""')}"`,
           `"${(a.services_provided || '').replace(/"/g, '""')}"`,
@@ -112,7 +120,7 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `approved_revenue_records_${Date.now()}.csv`);
+      link.setAttribute('download', `approved_field_records_${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -161,8 +169,8 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
           <h4 className="text-sm font-semibold text-gray-900">No records found</h4>
           <p className="text-xs text-gray-500 mt-1 max-w-sm mx-auto">
             {hasRole('collector')
-              ? 'Start capturing revenue items in the field with their exact GPS addresses and photos.'
-              : 'No revenue records have been registered under this filter criteria yet.'}
+              ? 'Start capturing field records in the field with their exact GPS addresses and photos.'
+              : 'No field records have been registered under this filter criteria yet.'}
           </p>
           {hasRole('collector') && (
             <Link

@@ -216,8 +216,13 @@ export default function ReviewDetail({
         </div>
       </div>
 
-      {/* ═══════ PROPERTY SPECIFICATIONS — Budget Director Editable Section ═══════ */}
-      {record.module === 'property' && (
+      {/* 
+      ========================================================================
+      FUTURE BILLING & PROPERTY VALUATION MODULE
+      Commented out for data-collection-only phase. To re-enable, remove `false &&` below:
+      ========================================================================
+      */}
+      {false && record.module === 'property' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">

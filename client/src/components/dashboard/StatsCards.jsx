@@ -6,10 +6,12 @@ import {
   Flag,
   Crosshair,
   Building,
-  Coins,
   ShieldCheck,
   Award,
+  /* FUTURE BILLING ICONS — uncomment when billing module is activated:
+  Coins,
   Landmark,
+  */
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -19,41 +21,27 @@ export default function StatsCards({ stats = {} }) {
   let cards = [];
 
   if (hasRole('budget_director')) {
-    // Tailored directly for the Budget Director
+    // Tailored directly for the Budget Director (Data Collection Mode)
     cards = [
       {
-        label: 'Certified Revenue',
-        value: `GH¢ ${(stats.approved_revenue_ghs || 0).toLocaleString()}`,
-        icon: Coins,
+        label: 'Approved & Finalized',
+        value: stats.approved_count || 0,
+        icon: CheckCircle2,
         color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-        subtitle: 'Approved and certified',
+        subtitle: 'Finalized field records',
       },
       {
         label: 'Awaiting Budget Sign-Off',
-        value: `GH¢ ${(stats.reviewed_revenue_ghs || 0).toLocaleString()}`,
+        value: stats.reviewed_count || 0,
         icon: Award,
         color: 'text-purple-700 bg-purple-50 border-purple-200',
         subtitle: `${stats.reviewed_count || 0} records awaiting your approval`,
       },
       {
-        label: 'Rateable Valuation Base',
-        value: `GH¢ ${(stats.total_rateable_value_ghs || 0).toLocaleString()}`,
-        icon: Landmark,
-        color: 'text-blue-700 bg-blue-50 border-blue-200',
-        subtitle: 'Assessed property tax roll base',
-      },
-      {
-        label: 'Certified Revenue Items',
-        value: stats.approved_count || 0,
-        icon: CheckCircle2,
-        color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-        subtitle: 'Available for immediate billing',
-      },
-      {
         label: 'Supervisor Queue',
         value: stats.submitted_count || 0,
         icon: Clock,
-        color: 'text-amber-700 bg-amber-50 border-amber-200',
+        color: 'text-blue-700 bg-blue-50 border-blue-200',
         subtitle: 'Under initial field review',
       },
       {
@@ -63,6 +51,36 @@ export default function StatsCards({ stats = {} }) {
         color: 'text-gray-700 bg-gray-50 border-gray-200',
         subtitle: `${stats.property_count || 0} props, ${stats.business_count || 0} biz`,
       },
+      {
+        label: 'Draft Records',
+        value: stats.draft_count || 0,
+        icon: FileText,
+        color: 'text-amber-700 bg-amber-50 border-amber-200',
+        subtitle: 'Incomplete field drafts',
+      },
+      {
+        label: 'Avg GPS Accuracy',
+        value: stats.avg_accuracy_m ? `±${stats.avg_accuracy_m}m` : '—',
+        icon: Crosshair,
+        color: 'text-teal-700 bg-teal-50 border-teal-200',
+        subtitle: 'Horizontal tolerance',
+      },
+      /* Future Billing & Revenue Cards (Commented out for data-collection-only phase)
+      {
+        label: 'Certified Revenue',
+        value: `GH¢ ${(stats.approved_revenue_ghs || 0).toLocaleString()}`,
+        icon: Coins,
+        color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+        subtitle: 'Approved and certified',
+      },
+      {
+        label: 'Rateable Valuation Base',
+        value: `GH¢ ${(stats.total_rateable_value_ghs || 0).toLocaleString()}`,
+        icon: Landmark,
+        color: 'text-blue-700 bg-blue-50 border-blue-200',
+        subtitle: 'Assessed property tax roll base',
+      },
+      */
     ];
   } else if (hasRole('supervisor')) {
     // Tailored for Data Supervisors
@@ -89,11 +107,11 @@ export default function StatsCards({ stats = {} }) {
         subtitle: 'Approved in system',
       },
       {
-        label: 'Revenue Potential',
-        value: `GH¢ ${(stats.approved_revenue_ghs || 0).toLocaleString()}`,
-        icon: Coins,
+        label: 'Total Mapped Units',
+        value: stats.total_records || 0,
+        icon: Building,
         color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
-        subtitle: 'Certified revenue value',
+        subtitle: `${stats.property_count || 0} props, ${stats.business_count || 0} biz`,
       },
       {
         label: 'Anomalies & Flags',
@@ -109,23 +127,32 @@ export default function StatsCards({ stats = {} }) {
         color: 'text-teal-700 bg-teal-50 border-teal-200',
         subtitle: 'Horizontal tolerance',
       },
+      /* Future Revenue Metric (Commented out for data-collection-only phase):
+      {
+        label: 'Revenue Potential',
+        value: `GH¢ ${(stats.approved_revenue_ghs || 0).toLocaleString()}`,
+        icon: Coins,
+        color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+        subtitle: 'Certified revenue value',
+      },
+      */
     ];
   } else if (hasRole('admin')) {
     // Comprehensive Admin view
     cards = [
       {
-        label: 'Certified Revenue',
-        value: `GH¢ ${(stats.approved_revenue_ghs || 0).toLocaleString()}`,
-        icon: Coins,
+        label: 'Approved & Finalized',
+        value: stats.approved_count || 0,
+        icon: CheckCircle2,
         color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-        subtitle: 'Approved billing revenue',
+        subtitle: 'Approved field records',
       },
       {
         label: 'Awaiting Budget Sign-Off',
         value: stats.reviewed_count || 0,
         icon: Award,
         color: 'text-purple-700 bg-purple-50 border-purple-200',
-        subtitle: `GH¢ ${(stats.reviewed_revenue_ghs || 0).toLocaleString()} pending approval`,
+        subtitle: `${stats.reviewed_count || 0} pending approval`,
       },
       {
         label: 'Supervisor Queue',
@@ -135,11 +162,33 @@ export default function StatsCards({ stats = {} }) {
         subtitle: 'Under field verification',
       },
       {
-        label: 'Certified Items',
-        value: stats.approved_count || 0,
-        icon: CheckCircle2,
+        label: 'Total Geo-Records',
+        value: stats.total_records || 0,
+        icon: Building,
+        color: 'text-gray-700 bg-gray-50 border-gray-200',
+        subtitle: `${stats.property_count || 0} props, ${stats.business_count || 0} biz`,
+      },
+      {
+        label: 'Draft Records',
+        value: stats.draft_count || 0,
+        icon: FileText,
+        color: 'text-amber-700 bg-amber-50 border-amber-200',
+        subtitle: 'Incomplete field drafts',
+      },
+      {
+        label: 'Avg GPS Accuracy',
+        value: stats.avg_accuracy_m ? `±${stats.avg_accuracy_m}m` : '—',
+        icon: Crosshair,
+        color: 'text-teal-700 bg-teal-50 border-teal-200',
+        subtitle: 'Horizontal tolerance',
+      },
+      /* Future Revenue & Valuation Roll (Commented out for data collection phase):
+      {
+        label: 'Certified Revenue',
+        value: `GH¢ ${(stats.approved_revenue_ghs || 0).toLocaleString()}`,
+        icon: Coins,
         color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-        subtitle: 'Ready in system',
+        subtitle: 'Approved billing revenue',
       },
       {
         label: 'Rateable Valuation Base',
@@ -148,13 +197,7 @@ export default function StatsCards({ stats = {} }) {
         color: 'text-indigo-700 bg-indigo-50 border-indigo-200',
         subtitle: 'Assessed property roll',
       },
-      {
-        label: 'Total Geo-Records',
-        value: stats.total_records || 0,
-        icon: Building,
-        color: 'text-gray-700 bg-gray-50 border-gray-200',
-        subtitle: `${stats.property_count || 0} props, ${stats.business_count || 0} biz`,
-      },
+      */
     ];
   } else {
     // Collector view

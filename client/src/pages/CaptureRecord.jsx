@@ -79,7 +79,7 @@ export default function CaptureRecord() {
       <div className="max-w-3xl mx-auto flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900">
-            {editId ? 'Edit Field Record' : 'Capture New Revenue Item'}
+            {editId ? 'Edit Field Record' : 'Capture New Field Record'}
           </h2>
           <p className="text-xs text-gray-500">
             Verify real-time coordinates, attach property photos, and register ratepayer

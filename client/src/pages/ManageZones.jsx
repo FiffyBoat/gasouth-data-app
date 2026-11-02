@@ -437,7 +437,7 @@ export default function ManageZones() {
                   <th className="px-4 py-3.5">Zone / Electoral Area Name</th>
                   <th className="px-4 py-3.5 text-center">Target Quota</th>
                   <th className="px-4 py-3.5 text-center">Captured Items</th>
-                  <th className="px-4 py-3.5 text-center">Approved Billing</th>
+                  <th className="px-4 py-3.5 text-center">Approved Records</th>
                   <th className="px-4 py-3.5 text-center">Realization</th>
                   <th className="px-4 py-3.5 text-center">Geofence Status</th>
                   <th className="px-4 py-3.5 text-right">Actions</th>
@@ -698,11 +698,11 @@ export default function ManageZones() {
               {/* Status & Progress Summary */}
               <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 space-y-1.5 text-gray-600 text-[11px]">
                 <div className="flex justify-between">
-                  <span>Current Revenue Records:</span>
+                  <span>Current Field Records:</span>
                   <span className="font-bold text-gray-900">{editingZone.record_count || 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Approved Rateable Assets:</span>
+                  <span>Approved Data Records:</span>
                   <span className="font-bold text-emerald-600">{editingZone.approved_count || 0}</span>
                 </div>
                 <div className="flex justify-between">

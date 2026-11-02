@@ -24,7 +24,7 @@ import { useAuth } from '../../contexts/AuthContext';
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, roles: null },
   { path: '/capture', label: 'Capture Record', icon: MapPin, roles: ['collector'] },
-  { path: '/records', label: 'Revenue Records', icon: ClipboardList, roles: null },
+  { path: '/records', label: 'Field Records', icon: ClipboardList, roles: null },
   { path: '/map', label: 'Map Explorer', icon: Map, roles: null },
   { path: '/review', label: 'Review & Approvals', icon: CheckSquare, roles: ['supervisor', 'budget_director', 'admin'] },
   { path: '/admin/users', label: 'Users', icon: Users, roles: ['admin'] },
