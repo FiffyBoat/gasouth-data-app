@@ -58,7 +58,10 @@ export default function CaptureRecord() {
       const newPhotos = photos.filter((p) => p.file);
       if (newPhotos.length > 0) {
         const uploadData = new FormData();
-        newPhotos.forEach((p) => uploadData.append('photos', p.file));
+        newPhotos.forEach((p) => {
+          const fileName = p.name || p.file?.name || `capture_${Date.now()}.jpg`;
+          uploadData.append('photos', p.file, fileName);
+        });
 
         await api.post(`/api/records/${recordId}/photos`, uploadData, {
           headers: { 'Content-Type': 'multipart/form-data' },

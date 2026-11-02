@@ -20,7 +20,7 @@ import StatusBadge from '../records/StatusBadge';
 import AccuracyIndicator from '../gps/AccuracyIndicator';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
 import { useAuth } from '../../contexts/AuthContext';
-import api, { getPhotoUrl } from '../../utils/api';
+import api, { getPhotoUrl, PHOTO_PLACEHOLDER } from '../../utils/api';
 
 export default function ReviewDetail({
   record,
@@ -420,11 +420,12 @@ export default function ReviewDetail({
                     alt={p.original_name || 'Field verification photo'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                     onError={(e) => {
-                      if (fullUrl && e.target.src !== fullUrl) {
+                      if (e.target.dataset.triedFull !== 'true' && fullUrl && fullUrl !== thumbUrl) {
+                        e.target.dataset.triedFull = 'true';
                         e.target.src = fullUrl;
                       } else {
                         e.target.onerror = null;
-                        e.target.src = 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&w=300&q=80';
+                        e.target.src = PHOTO_PLACEHOLDER;
                       }
                     }}
                   />

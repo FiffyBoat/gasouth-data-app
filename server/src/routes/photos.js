@@ -2,23 +2,32 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { auditLog } from '../middleware/audit.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
 
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+const serverUploadDir = path.resolve(__dirname, '../../uploads');
+const cwdUploadDir = path.resolve(process.cwd(), 'uploads');
+const uploadDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : (fs.existsSync(serverUploadDir) ? serverUploadDir : cwdUploadDir);
 const thumbnailsDir = path.join(uploadDir, 'thumbnails');
 
 // Ensure upload folders exist
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-if (!fs.existsSync(thumbnailsDir)) {
-  fs.mkdirSync(thumbnailsDir, { recursive: true });
-}
+[uploadDir, serverUploadDir, cwdUploadDir].forEach((dir) => {
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const thumbs = path.join(dir, 'thumbnails');
+    if (!fs.existsSync(thumbs)) fs.mkdirSync(thumbs, { recursive: true });
+  } catch (err) {
+    console.warn('Error creating upload folder:', dir, err.message);
+  }
+});
 
 // Multer storage
 const storage = multer.diskStorage({
@@ -101,9 +110,23 @@ router.post(
             .toFile(thumbFullPath);
 
           thumbnailPath = `/uploads/thumbnails/${thumbFilename}`;
+
+          // Also mirror thumbnail to cwdUploadDir if different
+          if (cwdUploadDir !== uploadDir) {
+            try {
+              fs.copyFileSync(thumbFullPath, path.join(cwdUploadDir, 'thumbnails', thumbFilename));
+            } catch (_) {}
+          }
         } catch (sharpErr) {
           // Sharp might fail or not be installed in some environments; fallback gracefully
           console.warn('Sharp thumbnail generation skipped:', sharpErr.message);
+        }
+
+        // Mirror main upload file to cwdUploadDir if different
+        if (cwdUploadDir !== uploadDir) {
+          try {
+            fs.copyFileSync(file.path, path.join(cwdUploadDir, file.filename));
+          } catch (_) {}
         }
 
         const insertRes = await query(
@@ -134,6 +157,24 @@ router.post(
     }
   }
 );
+
+/**
+ * GET /api/records/:id/photos
+ * Retrieve all photos for a record
+ */
+router.get('/:id/photos', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const photosRes = await query(
+      `SELECT * FROM photos WHERE record_id = $1 ORDER BY sort_order ASC, uploaded_at ASC`,
+      [id]
+    );
+    res.json({ photos: photosRes.rows || [] });
+  } catch (err) {
+    console.error('Error fetching record photos:', err);
+    res.status(500).json({ error: 'Failed to fetch record photos' });
+  }
+});
 
 /**
  * DELETE /api/records/photos/:id

@@ -23,7 +23,7 @@ import AccuracyIndicator from '../gps/AccuracyIndicator';
 import MapView from '../map/MapView';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
 import { useAuth } from '../../contexts/AuthContext';
-import { getPhotoUrl } from '../../utils/api';
+import { getPhotoUrl, PHOTO_PLACEHOLDER } from '../../utils/api';
 
 export default function RecordDetail({ record, onStatusChange, onDeleteRecord, isUpdating }) {
   const navigate = useNavigate();
@@ -324,11 +324,12 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
                         alt={p.original_name || `Evidence ${idx + 1}`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                         onError={(e) => {
-                          if (fullUrl && e.target.src !== fullUrl) {
+                          if (e.target.dataset.triedFull !== 'true' && fullUrl && fullUrl !== thumbUrl) {
+                            e.target.dataset.triedFull = 'true';
                             e.target.src = fullUrl;
                           } else {
                             e.target.onerror = null;
-                            e.target.src = 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&w=300&q=80';
+                            e.target.src = PHOTO_PLACEHOLDER;
                           }
                         }}
                       />
@@ -360,7 +361,7 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
             className="max-w-full max-h-[90vh] rounded-2xl object-contain shadow-2xl"
             onError={(e) => {
               e.target.onerror = null;
-              e.target.src = 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&w=800&q=80';
+              e.target.src = PHOTO_PLACEHOLDER;
             }}
           />
         </div>

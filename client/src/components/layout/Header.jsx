@@ -101,7 +101,7 @@ export default function Header({ onMenuClick }) {
           <span className="text-amber-300 font-semibold text-[11px]">EKOME FEEMƆ KƐ NƆYAA</span>
         </div>
 
-        {hasRole('collector') && (
+        {hasRole('collector') && location.pathname !== '/capture' && (
           <Link
             to="/capture"
             className="flex items-center gap-1.5 rounded-xl bg-[#991B1B] hover:bg-[#7f1d1d] px-3.5 py-2 text-sm font-bold text-white shadow-md shadow-[#991B1B]/30 transition-all active:scale-[0.98] ring-1 ring-amber-400/40"

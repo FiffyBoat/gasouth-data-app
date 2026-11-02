@@ -26,11 +26,24 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Upload directory setup
-const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Upload directory setup (canonical server/uploads + root/uploads support)
+const serverUploadDir = path.resolve(__dirname, '../uploads');
+const cwdUploadDir = path.resolve(process.cwd(), 'uploads');
+const configuredUploadDir = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : null;
+
+// Primary upload directory to save incoming files
+export const uploadDir = configuredUploadDir || (fs.existsSync(serverUploadDir) ? serverUploadDir : cwdUploadDir);
+
+// Ensure folders exist with thumbnails subfolder
+[serverUploadDir, cwdUploadDir, uploadDir].forEach((dir) => {
+  try {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const thumbs = path.join(dir, 'thumbnails');
+    if (!fs.existsSync(thumbs)) fs.mkdirSync(thumbs, { recursive: true });
+  } catch (err) {
+    console.warn('Could not initialize upload folder:', dir, err.message);
+  }
+});
 
 // Security & utility middleware
 app.use(helmet({
@@ -57,8 +70,29 @@ const apiLimiter = rateLimit({
 });
 app.use('/api', apiLimiter);
 
-// Serve static uploads
-app.use('/uploads', express.static(uploadDir));
+// Serve static uploads from all possible locations
+app.use('/uploads', express.static(serverUploadDir, { maxAge: '1d', fallthrough: true }));
+app.use('/uploads', express.static(cwdUploadDir, { maxAge: '1d', fallthrough: true }));
+if (configuredUploadDir) {
+  app.use('/uploads', express.static(configuredUploadDir, { maxAge: '1d', fallthrough: true }));
+}
+
+// Fallback upload resolver: directly stream file if found in either location
+app.get('/uploads/*', (req, res, next) => {
+  const relPath = req.params[0];
+  const candidates = [
+    path.join(serverUploadDir, relPath),
+    path.join(cwdUploadDir, relPath),
+    configuredUploadDir ? path.join(configuredUploadDir, relPath) : null,
+  ].filter(Boolean);
+
+  for (const p of candidates) {
+    if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+      return res.sendFile(p);
+    }
+  }
+  res.status(404).json({ error: 'Photo not found on server storage' });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Image as ImageIcon, X, Upload, MapPin, Eye, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { watermarkImage } from '../../utils/watermark';
-import { getPhotoUrl } from '../../utils/api';
+import { getPhotoUrl, PHOTO_PLACEHOLDER } from '../../utils/api';
 
 export default function PhotoUpload({
   photos = [],
@@ -133,12 +133,12 @@ export default function PhotoUpload({
                 alt={`Capture ${idx + 1}`}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 onError={(e) => {
-                  if (photo.file_path && e.target.src !== getPhotoUrl(photo.file_path)) {
+                  if (photo.file_path && e.target.dataset.triedFull !== 'true') {
+                    e.target.dataset.triedFull = 'true';
                     e.target.src = getPhotoUrl(photo.file_path);
                   } else {
                     e.target.onerror = null;
-                    e.target.src =
-                      'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&w=300&q=80';
+                    e.target.src = PHOTO_PLACEHOLDER;
                   }
                 }}
               />

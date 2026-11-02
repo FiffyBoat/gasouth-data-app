@@ -122,8 +122,12 @@ export function getPhotoUrl(filePath) {
   ) {
     return filePath;
   }
-  const baseUrl = import.meta.env.VITE_API_URL || '';
-  return `${baseUrl}${filePath.startsWith('/') ? filePath : '/' + filePath}`;
+  const baseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  const cleanPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+  return `${baseUrl}${cleanPath}`;
 }
+
+export const PHOTO_PLACEHOLDER =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400' viewBox='0 0 400 400' fill='%23f1f5f9'><rect width='400' height='400' fill='%23f8fafc'/><path d='M140 180a40 40 0 1080 0 40 40 0 00-80 0zm140 100H120l50-65 35 45 45-60 30 40z' fill='%2394a3b8'/><text x='50%25' y='82%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' font-weight='600' fill='%2364748b'>GSMA Field Photo</text></svg>";
 
 export default api;
