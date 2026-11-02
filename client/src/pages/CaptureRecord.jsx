@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import RecordForm from '../components/records/RecordForm';
 import api from '../utils/api';
+import { saveOfflineRecord } from '../utils/offlineStorage';
 
 export default function CaptureRecord() {
   const navigate = useNavigate();
@@ -33,6 +34,15 @@ export default function CaptureRecord() {
   const handleSubmit = async (formData, onSuccess) => {
     setSubmitting(true);
     try {
+      // 1. If currently offline, save directly to local IndexedDB outbox
+      if (!navigator.onLine && !editId) {
+        await saveOfflineRecord(formData);
+        if (onSuccess) onSuccess();
+        alert('Offline Notice: Record and watermarked photos have been saved securely to your local Outbox. They will automatically upload when network is restored!');
+        navigate('/records');
+        return;
+      }
+
       const { photos, ...recordData } = formData;
 
       let recordId = editId;
@@ -60,6 +70,18 @@ export default function CaptureRecord() {
       navigate(`/records/${recordId}`);
     } catch (err) {
       console.error('Error saving record:', err);
+      // Fallback: If network connection failed or server is unreachable, save to offline outbox!
+      if ((!navigator.onLine || !err.response) && !editId) {
+        try {
+          await saveOfflineRecord(formData);
+          if (onSuccess) onSuccess();
+          alert('Network Interruption: Record has been saved safely to your Offline Outbox. It will sync automatically as soon as mobile connectivity returns!');
+          navigate('/records');
+          return;
+        } catch (offlineErr) {
+          console.error('Failed to save to offline storage:', offlineErr);
+        }
+      }
       alert(err.response?.data?.error || 'Failed to save record.');
     } finally {
       setSubmitting(false);

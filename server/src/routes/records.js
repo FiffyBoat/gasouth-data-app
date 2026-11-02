@@ -40,7 +40,7 @@ router.get('/check-duplicates', authenticate, async (req, res) => {
  */
 router.get('/nearby', authenticate, async (req, res) => {
   try {
-    const { lat, lng, radius = 50, limit = 50 } = req.query;
+    const { lat, lng, radius = 50, limit = 50, exclude_id = null } = req.query;
 
     if (!lat || !lng) {
       return res.status(400).json({ error: 'lat and lng parameters are required' });
@@ -50,13 +50,83 @@ router.get('/nearby', authenticate, async (req, res) => {
       parseFloat(lat),
       parseFloat(lng),
       parseFloat(radius),
-      parseInt(limit, 10)
+      parseInt(limit, 10),
+      exclude_id || null
     );
 
     res.json({ records });
   } catch (err) {
     console.error('Error fetching nearby records:', err);
     res.status(500).json({ error: 'Failed to fetch nearby records' });
+  }
+});
+
+/**
+ * GET /api/records/collector-route
+ * Allows supervisors/admins to trace a collector's route and timestamps on a given date
+ * Query params: collector_id, date (YYYY-MM-DD)
+ */
+router.get('/collector-route', authenticate, async (req, res) => {
+  try {
+    const { collector_id, date } = req.query;
+
+    if (!collector_id) {
+      return res.status(400).json({ error: 'collector_id parameter is required' });
+    }
+
+    const targetDate = date || new Date().toISOString().split('T')[0];
+
+    const result = await query(
+      `SELECT
+         r.id, r.module, r.latitude, r.longitude, r.accuracy_m,
+         r.owner_name, r.status, r.ghana_post_address,
+         r.capture_time, r.created_at,
+         u.full_name AS collector_name,
+         z.name AS zone_name,
+         (SELECT file_path FROM photos WHERE record_id = r.id ORDER BY sort_order ASC, uploaded_at ASC LIMIT 1) AS primary_photo
+       FROM records r
+       JOIN users u ON r.created_by = u.id
+       LEFT JOIN zones z ON r.zone_id = z.id
+       WHERE r.created_by = $1
+         AND (
+           DATE(r.capture_time AT TIME ZONE 'UTC') = $2::date
+           OR DATE(r.created_at AT TIME ZONE 'UTC') = $2::date
+         )
+       ORDER BY COALESCE(r.capture_time, r.created_at) ASC;`,
+      [collector_id, targetDate]
+    );
+
+    const points = result.rows;
+
+    // Calculate total route distance in meters using Haversine formula
+    let totalDistanceM = 0;
+    for (let i = 1; i < points.length; i++) {
+      const p1 = points[i - 1];
+      const p2 = points[i];
+      const R = 6371e3; // metres
+      const φ1 = (p1.latitude * Math.PI) / 180;
+      const φ2 = (p2.latitude * Math.PI) / 180;
+      const Δφ = ((p2.latitude - p1.latitude) * Math.PI) / 180;
+      const Δλ = ((p2.longitude - p1.longitude) * Math.PI) / 180;
+      const a =
+        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      totalDistanceM += R * c;
+    }
+
+    res.json({
+      collector_id,
+      date: targetDate,
+      total_points: points.length,
+      total_distance_km: (totalDistanceM / 1000).toFixed(2),
+      start_time: points.length > 0 ? points[0].capture_time || points[0].created_at : null,
+      end_time: points.length > 0 ? points[points.length - 1].capture_time || points[points.length - 1].created_at : null,
+      points,
+    });
+  } catch (err) {
+    console.error('Error fetching collector route:', err);
+    res.status(500).json({ error: 'Failed to fetch collector route' });
   }
 });
 

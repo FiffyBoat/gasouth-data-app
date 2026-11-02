@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import GPSCapture from '../gps/GPSCapture';
 import GeofenceWarning from '../gps/GeofenceWarning';
+import ProximityAlert from '../gps/ProximityAlert';
 import PhotoUpload from './PhotoUpload';
 import AutocompleteInput, { seedSuggestions } from './AutocompleteInput';
 import useGeolocation from '../../hooks/useGeolocation';
@@ -85,6 +86,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
 
   // Warnings
   const [geofenceWarning, setGeofenceWarning] = useState(null);
+  const [isConfirmedDistinct, setIsConfirmedDistinct] = useState(false);
 
   // Clear specific field error when user edits it
   const updateFieldError = (field) => {
@@ -310,6 +312,15 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
         onManualSelect={(lat, lng) => geo.setManualPosition(lat, lng, 15)}
         ghanaPostAddress={ghanaPostAddress}
         onGhanaPostChange={setGhanaPostAddress}
+      />
+
+      {/* Proximity / Anti-Duplicate Alert (15m Scan) */}
+      <ProximityAlert
+        latitude={geo.latitude}
+        longitude={geo.longitude}
+        excludeId={initialRecord?.id}
+        isConfirmedDistinct={isConfirmedDistinct}
+        onConfirmDistinctChange={setIsConfirmedDistinct}
       />
 
       {/* Geofence Alert */}

@@ -8,6 +8,7 @@ import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Menu, Plus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import OfflineOutboxIndicator from './OfflineOutboxIndicator';
 
 /** Maps route paths to display names for breadcrumbs */
 const ROUTE_LABELS = {
@@ -90,6 +91,9 @@ export default function Header({ onMenuClick }) {
 
       {/* Assembly Tag & Quick actions */}
       <div className="flex items-center gap-3">
+        {/* Offline Outbox & Network Status Indicator */}
+        <OfflineOutboxIndicator />
+
         <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-black border border-[#991B1B]/60 rounded-full text-xs font-bold text-white shadow-sm">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
           <span className="text-[#fca5a5]">Ga South</span>

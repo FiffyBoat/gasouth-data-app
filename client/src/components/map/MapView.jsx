@@ -102,6 +102,7 @@ const STREET_STYLE = {
 export default function MapView({
   records = [],
   zones = [],
+  routePoints = [],
   onSelectRecord,
   selectedRecordId,
   mapLayer = 'satellite',
@@ -197,7 +198,7 @@ export default function MapView({
     }
   };
 
-  // Render High-Visibility 3D Upright Billboard Markers
+  // Render Record Markers OR Collector Sequential Route
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -206,7 +207,126 @@ export default function MapView({
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Add high-visibility markers
+    // Clear old route layers if present
+    if (map.getLayer('collector-route-line-casing')) map.removeLayer('collector-route-line-casing');
+    if (map.getLayer('collector-route-line')) map.removeLayer('collector-route-line');
+    if (map.getSource('collector-route-source')) map.removeSource('collector-route-source');
+
+    // SCENARIO 1: Rendering Collector Daily Route
+    if (routePoints && routePoints.length > 0) {
+      const coordinates = routePoints
+        .filter((p) => p.latitude != null && p.longitude != null)
+        .map((p) => [p.longitude, p.latitude]);
+
+      if (coordinates.length > 1) {
+        // Add Route GeoJSON Polyline
+        map.addSource('collector-route-source', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates,
+            },
+          },
+        });
+
+        // White casing
+        map.addLayer({
+          id: 'collector-route-line-casing',
+          type: 'line',
+          source: 'collector-route-source',
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 7,
+            'line-opacity': 0.9,
+          },
+        });
+
+        // Vibrant purple path
+        map.addLayer({
+          id: 'collector-route-line',
+          type: 'line',
+          source: 'collector-route-source',
+          paint: {
+            'line-color': '#7c3aed',
+            'line-width': 4,
+            'line-opacity': 1,
+          },
+        });
+      }
+
+      // Add Numbered Sequence Pins for Route
+      const bounds = new maplibregl.LngLatBounds();
+
+      routePoints.forEach((pt, idx) => {
+        if (pt.latitude == null || pt.longitude == null) return;
+        bounds.extend([pt.longitude, pt.latitude]);
+
+        const isStart = idx === 0;
+        const isEnd = idx === routePoints.length - 1;
+        const pinBg = isStart ? '#059669' : isEnd ? '#dc2626' : '#7c3aed';
+
+        const el = document.createElement('div');
+        el.className = 'group cursor-pointer select-none';
+        el.style.transformOrigin = 'bottom center';
+        el.style.willChange = 'transform';
+
+        el.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));">
+            <div style="
+              display: flex;
+              align-items: center;
+              gap: 3px;
+              padding: 2px 7px;
+              border-radius: 9999px;
+              background: ${pinBg};
+              color: #ffffff;
+              font-family: monospace;
+              font-size: 11px;
+              font-weight: 800;
+              border: 2px solid #ffffff;
+              box-shadow: 0 0 10px ${pinBg}aa;
+              white-space: nowrap;
+            ">
+              <span>#${idx + 1}</span>
+            </div>
+            <div style="width: 2.5px; height: 14px; background: linear-gradient(to bottom, #ffffff, ${pinBg});"></div>
+            <div style="width: 7px; height: 7px; border-radius: 50%; background: ${pinBg}; border: 1.5px solid white;"></div>
+          </div>
+        `;
+
+        const timeStr = pt.capture_time ? new Date(pt.capture_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+        const popup = new maplibregl.Popup({ offset: [0, -28], closeButton: false }).setHTML(`
+          <div style="font-family: sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.4;">
+            <div style="font-weight: 700; color: #7c3aed; font-size: 11px; text-transform: uppercase;">Stop #${idx + 1} ${timeStr ? `• ${timeStr}` : ''}</div>
+            <div style="font-weight: 700; color: #111827; font-size: 13px;">${pt.owner_name || pt.module}</div>
+            <div style="color: #4b5563; font-family: monospace; font-size: 11px;">${formatCoordinates(pt.latitude, pt.longitude)}</div>
+            ${pt.ghana_post_address ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px;">🇬🇭 ${pt.ghana_post_address}</div>` : ''}
+          </div>
+        `);
+
+        const marker = new maplibregl.Marker({
+          element: el,
+          anchor: 'bottom',
+          pitchAlignment: 'viewport',
+          rotationAlignment: 'viewport',
+        })
+          .setLngLat([pt.longitude, pt.latitude])
+          .setPopup(popup)
+          .addTo(map);
+
+        markersRef.current.push(marker);
+      });
+
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: 80, maxZoom: 16 });
+      }
+      return;
+    }
+
+    // SCENARIO 2: Rendering Standard Active Records
     records.forEach((record) => {
       if (record.latitude == null || record.longitude == null) return;
 
@@ -219,10 +339,6 @@ export default function MapView({
       el.style.transformOrigin = 'bottom center';
       el.style.willChange = 'transform';
 
-      // HTML Structure:
-      // 1. Floating Billboard Status Badge (Stands tall in 3D, faces camera)
-      // 2. Vertical Stalk Needle (Lifts badge above roofs and terrain)
-      // 3. Ground Anchor Target Dot (Points to exact GPS coordinate)
       el.innerHTML = `
         <div style="
           display: flex;
@@ -314,10 +430,6 @@ export default function MapView({
         </div>
       `);
 
-      // KEY 3D VISIBILITY FIX:
-      // anchor: 'bottom' -> pinpoint touches ground exactly
-      // pitchAlignment: 'viewport' -> stands vertically upright facing camera in 3D!
-      // rotationAlignment: 'viewport' -> stays oriented towards viewer when map rotates!
       const marker = new maplibregl.Marker({
         element: el,
         anchor: 'bottom',
@@ -330,7 +442,7 @@ export default function MapView({
 
       markersRef.current.push(marker);
     });
-  }, [records, selectedRecordId]);
+  }, [records, selectedRecordId, routePoints]);
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden border border-gray-200" style={{ height }}>

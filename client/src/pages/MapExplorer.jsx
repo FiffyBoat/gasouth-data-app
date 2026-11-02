@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import { Footprints, Map as MapIcon, X } from 'lucide-react';
 import MapView from '../components/map/MapView';
 import MapFilters from '../components/map/MapFilters';
 import RecordPopup from '../components/map/RecordPopup';
+import RouteTrackerPanel from '../components/map/RouteTrackerPanel';
 import api from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function MapExplorer() {
+  const { hasRole } = useAuth();
   const [records, setRecords] = useState([]);
   const [zones, setZones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [mapLayer, setMapLayer] = useState('satellite');
   const [selectedRecord, setSelectedRecord] = useState(null);
+
+  // Collector Route Inspection State
+  const [showRoutePanel, setShowRoutePanel] = useState(false);
+  const [activeRouteData, setActiveRouteData] = useState(null);
 
   const [filters, setFilters] = useState({
     module: '',
@@ -63,29 +71,84 @@ export default function MapExplorer() {
 
   return (
     <div className="space-y-3 flex flex-col h-[calc(100vh-120px)]">
-      {/* Filters Header */}
-      <MapFilters
-        filters={filters}
-        onChange={handleFilterChange}
-        zones={zones}
-        mapLayer={mapLayer}
-        onToggleLayer={handleToggleLayer}
-        onRefresh={fetchRecords}
-      />
+      {/* Top Filter Bar with Route Tracker Toggle */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex-1">
+          <MapFilters
+            filters={filters}
+            onChange={handleFilterChange}
+            zones={zones}
+            mapLayer={mapLayer}
+            onToggleLayer={handleToggleLayer}
+            onRefresh={fetchRecords}
+          />
+        </div>
+
+        {/* Route Inspector Button for Supervisors / Admins */}
+        {(hasRole('supervisor') || hasRole('admin')) && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowRoutePanel(!showRoutePanel);
+              if (showRoutePanel) setActiveRouteData(null);
+            }}
+            className={`px-3.5 py-2 rounded-2xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all shrink-0 ${
+              showRoutePanel || activeRouteData
+                ? 'bg-purple-600 text-white ring-2 ring-purple-300'
+                : 'bg-white hover:bg-gray-50 text-purple-700 border border-purple-200'
+            }`}
+          >
+            <Footprints className="w-4 h-4" />
+            <span>{activeRouteData ? 'Route Active' : 'Trace Officer Route'}</span>
+          </button>
+        )}
+      </div>
 
       {/* Map Explorer Area */}
       <div className="relative flex-1 w-full bg-gray-100 rounded-2xl overflow-hidden shadow-sm border border-gray-200">
         <MapView
           records={records}
           zones={zones}
+          routePoints={activeRouteData?.points || []}
           mapLayer={mapLayer}
           onSelectRecord={(r) => setSelectedRecord(r)}
           selectedRecordId={selectedRecord?.id}
           height="100%"
         />
 
+        {/* Floating Route Tracker Panel */}
+        {showRoutePanel && (
+          <div className="absolute top-4 right-4 z-20 w-84 max-w-[calc(100vw-2rem)]">
+            <RouteTrackerPanel
+              onSelectRoute={(data) => setActiveRouteData(data)}
+              onClearRoute={() => {
+                setActiveRouteData(null);
+                setShowRoutePanel(false);
+              }}
+              activeRouteData={activeRouteData}
+            />
+          </div>
+        )}
+
+        {/* Active Route Floating Banner at Top Center */}
+        {activeRouteData && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-purple-900/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg border border-purple-400/30 text-xs font-medium flex items-center gap-3">
+            <Footprints className="w-4 h-4 text-purple-300 animate-pulse" />
+            <span>
+              Tracing <strong>{activeRouteData.total_points} stops</strong> ({activeRouteData.total_distance_km} km)
+            </span>
+            <button
+              type="button"
+              onClick={() => setActiveRouteData(null)}
+              className="text-purple-300 hover:text-white font-bold ml-1 text-xs"
+            >
+              ✕ Exit
+            </button>
+          </div>
+        )}
+
         {/* Selected Record Floating Bottom Card on Mobile/Desktop */}
-        {selectedRecord && (
+        {selectedRecord && !activeRouteData && (
           <div className="absolute bottom-4 left-4 right-4 sm:right-auto sm:w-80 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-xl border border-gray-200 z-20">
             <div className="flex justify-end pb-1">
               <button
