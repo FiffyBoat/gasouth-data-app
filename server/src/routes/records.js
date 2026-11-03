@@ -351,10 +351,23 @@ router.get('/export/csv', authenticate, async (req, res) => {
       const company = a.business_type || a.company || '';
       const zoneName = r.zone_name || '';
 
+      // Generate synthetic valid & unique email for ZebraRMS import (Format A: {phone}@gasouth.gov.gh)
+      let cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+      let syntheticEmail = '';
+      if (cleanPhone && cleanPhone.length >= 7) {
+        syntheticEmail = `${cleanPhone}@gasouth.gov.gh`;
+      } else if (a.upn) {
+        const cleanUpn = String(a.upn).replace(/[^a-zA-Z0-9]/g, '');
+        syntheticEmail = `upn.${cleanUpn}@gasouth.gov.gh`;
+      } else {
+        const shortId = String(r.id || 'record').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+        syntheticEmail = `prop.${shortId}@gasouth.gov.gh`;
+      }
+
       return [
         escapeCsv(firstname),                                      // 1. Firstname
         escapeCsv(lastname),                                       // 2. Lastname
-        '""',                                                      // 3. Email (empty)
+        escapeCsv(syntheticEmail),                                 // 3. Email (Synthetic Unique for ZebraRMS)
         escapeCsv(phone),                                          // 4. Contact phonenumber
         '""',                                                      // 5. Position (empty)
         escapeCsv(company),                                        // 6. Company
