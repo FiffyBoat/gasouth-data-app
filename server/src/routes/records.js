@@ -259,16 +259,23 @@ router.get('/', authenticate, async (req, res) => {
 
 /**
  * GET /api/records/export/csv
- * Exports approved (or all verified) records as a downloadable CSV file
+ * Exports records in the exact 43-column ZebraRMS import template format:
+ * Firstname | Lastname | Email | Contact phonenumber | Position | Company | Vat | Phonenumber | Country | City | Zip | State | Address | Website | Billing street | Billing city | Billing state | Billing zip | Billing country | Shipping street | Shipping city | Shipping state | Shipping zip | Shipping country | Longitude | Latitude | Stripe id | Location | Landmark | Business Type | Business Category | Service(s) Provided | Valuation Number | Use Code | Zone | UPN | Property Address | Ghana Post Code | Street Name | Collection Area | Sub Collection Area | Rateable Value | Rate Impost
  */
 router.get('/export/csv', authenticate, async (req, res) => {
   try {
     const { status = 'approved', module: modFilter, zone_id } = req.query;
 
-    const listRes = await query('SELECT * FROM records r GROUP BY r.id');
+    const listRes = await query(`
+      SELECT r.*, z.name as zone_name
+      FROM records r
+      LEFT JOIN zones z ON r.zone_id = z.id
+      GROUP BY r.id, z.name
+      ORDER BY r.created_at DESC
+    `);
     let records = listRes.rows || [];
 
-    if (status) {
+    if (status && status !== 'all') {
       records = records.filter((r) => r.status === status);
     }
     if (modFilter) {
@@ -278,70 +285,123 @@ router.get('/export/csv', authenticate, async (req, res) => {
       records = records.filter((r) => r.zone_id === zone_id);
     }
 
-    // Generate CSV Header
+    // Exact 43 ZebraRMS template headers in precise order
     const headers = [
-      'Record ID',
-      'Revenue Category',
-      'Ratepayer Name',
-      'Phone',
-      'Group',
-      'GPS Latitude',
-      'GPS Longitude',
-      'Accuracy (m)',
-      'Ghana Post Address',
+      'Firstname',
+      'Lastname',
+      'Email',
+      'Contact phonenumber',
+      'Position',
+      'Company',
+      'Vat',
+      'Phonenumber',
+      'Country',
+      'City',
+      'Zip',
+      'State',
+      'Address',
+      'Website',
+      'Billing street',
+      'Billing city',
+      'Billing state',
+      'Billing zip',
+      'Billing country',
+      'Shipping street',
+      'Shipping city',
+      'Shipping state',
+      'Shipping zip',
+      'Shipping country',
+      'Longitude',
+      'Latitude',
+      'Stripe id',
+      'Location',
       'Landmark',
+      'Business Type',
+      'Business Category',
+      'Service(s) Provided',
+      'Valuation Number',
+      'Use Code',
+      'Zone',
+      'UPN',
+      'Property Address',
+      'Ghana Post Code',
       'Street Name',
       'Collection Area',
       'Sub Collection Area',
-      'UPN',
-      'Property Address',
-      'Valuation Number',
-      'Use Code',
-      'Rateable Value (GHS)',
+      'Rateable Value',
       'Rate Impost',
-      'Business Type',
-      'Business Category',
-      'Services Provided',
-      'Status',
-      'Captured Date',
-      'Last Review Comment',
     ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined || val === '') return '""';
+      const str = String(val);
+      return `"${str.replace(/"/g, '""')}"`;
+    };
 
     const rows = records.map((r) => {
       const a = r.attributes || {};
+      const rawName = (r.owner_name || '').trim();
+      const nameParts = rawName ? rawName.split(/\s+/) : [];
+      const firstname = nameParts.length > 0 ? nameParts[0] : '';
+      const lastname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+      const phone = r.owner_phone || '';
+      const ghanaPost = r.ghana_post_address || '';
+      const propAddress = a.property_address || '';
+      const street = a.street_name || '';
+      const company = a.business_type || a.company || '';
+      const zoneName = r.zone_name || '';
+
       return [
-        `"${r.id || ''}"`,
-        `"${r.module || ''}"`,
-        `"${(r.owner_name || '').replace(/"/g, '""')}"`,
-        `"${r.owner_phone || ''}"`,
-        `"${(a.groups || '').replace(/"/g, '""')}"`,
-        r.latitude || '',
-        r.longitude || '',
-        r.accuracy_m || '',
-        `"${r.ghana_post_address || ''}"`,
-        `"${(a.landmark || '').replace(/"/g, '""')}"`,
-        `"${(a.street_name || '').replace(/"/g, '""')}"`,
-        `"${(a.collection_area || '').replace(/"/g, '""')}"`,
-        `"${(a.sub_collection_area || '').replace(/"/g, '""')}"`,
-        `"${(a.upn || '').replace(/"/g, '""')}"`,
-        `"${(a.property_address || '').replace(/"/g, '""')}"`,
-        `"${(a.valuation_number || '').replace(/"/g, '""')}"`,
-        `"${(a.use_code || '').replace(/"/g, '""')}"`,
-        a.rateable_value || '',
-        a.rate_impost || '',
-        `"${(a.business_type || '').replace(/"/g, '""')}"`,
-        `"${(a.business_category || '').replace(/"/g, '""')}"`,
-        `"${(a.services_provided || '').replace(/"/g, '""')}"`,
-        `"${r.status || ''}"`,
-        `"${r.created_at ? new Date(r.created_at).toISOString().split('T')[0] : ''}"`,
-        `"${(r.review_comment || '').replace(/"/g, '""')}"`,
+        escapeCsv(firstname),                                      // 1. Firstname
+        escapeCsv(lastname),                                       // 2. Lastname
+        '""',                                                      // 3. Email (empty)
+        escapeCsv(phone),                                          // 4. Contact phonenumber
+        '""',                                                      // 5. Position (empty)
+        escapeCsv(company),                                        // 6. Company
+        '""',                                                      // 7. Vat (empty)
+        escapeCsv(phone),                                          // 8. Phonenumber
+        escapeCsv('Ghana'),                                        // 9. Country
+        '""',                                                      // 10. City (empty)
+        '""',                                                      // 11. Zip (empty)
+        '""',                                                      // 12. State (empty)
+        escapeCsv(propAddress),                                    // 13. Address
+        '""',                                                      // 14. Website (empty)
+        escapeCsv(street),                                         // 15. Billing street
+        '""',                                                      // 16. Billing city (empty)
+        '""',                                                      // 17. Billing state (empty)
+        '""',                                                      // 18. Billing zip (empty)
+        escapeCsv('Ghana'),                                        // 19. Billing country
+        '""',                                                      // 20. Shipping street (empty)
+        '""',                                                      // 21. Shipping city (empty)
+        '""',                                                      // 22. Shipping state (empty)
+        '""',                                                      // 23. Shipping zip (empty)
+        '""',                                                      // 24. Shipping country (empty)
+        r.longitude != null ? r.longitude : '',                    // 25. Longitude
+        r.latitude != null ? r.latitude : '',                      // 26. Latitude
+        '""',                                                      // 27. Stripe id (empty)
+        escapeCsv(ghanaPost),                                      // 28. Location
+        escapeCsv(a.landmark || ''),                               // 29. Landmark
+        escapeCsv(a.business_type || ''),                          // 30. Business Type
+        escapeCsv(a.business_category || ''),                      // 31. Business Category
+        escapeCsv(a.services_provided || ''),                      // 32. Service(s) Provided
+        escapeCsv(a.valuation_number || ''),                       // 33. Valuation Number
+        escapeCsv(a.use_code || ''),                               // 34. Use Code
+        escapeCsv(zoneName),                                       // 35. Zone
+        escapeCsv(a.upn || ''),                                    // 36. UPN
+        escapeCsv(propAddress),                                    // 37. Property Address
+        escapeCsv(ghanaPost),                                      // 38. Ghana Post Code
+        escapeCsv(street),                                         // 39. Street Name
+        escapeCsv(a.collection_area || ''),                        // 40. Collection Area
+        escapeCsv(a.sub_collection_area || ''),                    // 41. Sub Collection Area
+        a.rateable_value != null && a.rateable_value !== '' ? a.rateable_value : '""', // 42. Rateable Value
+        a.rate_impost != null && a.rate_impost !== '' ? a.rate_impost : '""',         // 43. Rate Impost
       ].join(',');
     });
 
     const csvContent = [headers.join(','), ...rows].join('\r\n');
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="approved_revenue_records_${Date.now()}.csv"`);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="zebrarms_export_${Date.now()}.csv"`);
     res.send(csvContent);
   } catch (err) {
     console.error('CSV Export error:', err);

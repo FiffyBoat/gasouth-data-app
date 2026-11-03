@@ -30,13 +30,13 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
 
   const handleExportApprovedCSV = async () => {
     try {
-      // First attempt downloading comprehensive CSV export from backend
+      // First attempt downloading ZebraRMS-formatted CSV export from backend
       const res = await api.get('/api/records/export/csv?status=approved', { responseType: 'blob' });
       const blob = new Blob([res.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `approved_field_records_${Date.now()}.csv`;
+      a.download = `zebrarms_export_${Date.now()}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -50,70 +50,115 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
         return;
       }
 
+      // Exact 43 ZebraRMS template headers in order
       const headers = [
-        'Record ID',
-        'Category',
-        'Ratepayer Name',
-        'Phone Number',
-        'Ratepayer Group',
-        'GPS Latitude',
-        'GPS Longitude',
-        'GPS Accuracy (m)',
-        'Ghana Post Address',
+        'Firstname',
+        'Lastname',
+        'Email',
+        'Contact phonenumber',
+        'Position',
+        'Company',
+        'Vat',
+        'Phonenumber',
+        'Country',
+        'City',
+        'Zip',
+        'State',
+        'Address',
+        'Website',
+        'Billing street',
+        'Billing city',
+        'Billing state',
+        'Billing zip',
+        'Billing country',
+        'Shipping street',
+        'Shipping city',
+        'Shipping state',
+        'Shipping zip',
+        'Shipping country',
+        'Longitude',
+        'Latitude',
+        'Stripe id',
+        'Location',
         'Landmark',
+        'Business Type',
+        'Business Category',
+        'Service(s) Provided',
+        'Valuation Number',
+        'Use Code',
+        'Zone',
+        'UPN',
+        'Property Address',
+        'Ghana Post Code',
         'Street Name',
         'Collection Area',
         'Sub Collection Area',
-        'UPN',
-        'Property Address',
-        /* ================================================================
-           FUTURE BILLING COLUMNS — Commented out for data-collection phase
-           Re-enable when billing module is activated:
-        'Valuation Number',
-        'Use Code',
-        'Rateable Value (GHS)',
+        'Rateable Value',
         'Rate Impost',
-           ================================================================ */
-        'Business Type',
-        'Business Category',
-        'Services Provided',
-        'Status',
-        'Zone',
-        'Captured Date',
       ];
+
+      const escapeCell = (val) => {
+        if (val === null || val === undefined || val === '') return '""';
+        return `"${String(val).replace(/"/g, '""')}"`;
+      };
 
       const rows = approvedRecords.map((r) => {
         const a = r.attributes || {};
+        const rawName = (r.owner_name || '').trim();
+        const nameParts = rawName ? rawName.split(/\s+/) : [];
+        const firstname = nameParts.length > 0 ? nameParts[0] : '';
+        const lastname = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+        const phone = r.owner_phone || '';
+        const ghanaPost = r.ghana_post_address || '';
+        const propAddress = a.property_address || '';
+        const street = a.street_name || '';
+        const company = a.business_type || a.company || '';
+        const zoneName = r.zone_name || '';
+
         return [
-          `"${r.id || ''}"`,
-          `"${r.module || ''}"`,
-          `"${(r.owner_name || '').replace(/"/g, '""')}"`,
-          `"${r.owner_phone || ''}"`,
-          `"${(a.groups || '').replace(/"/g, '""')}"`,
-          r.latitude || '',
-          r.longitude || '',
-          r.accuracy_m || '',
-          `"${r.ghana_post_address || ''}"`,
-          `"${(a.landmark || '').replace(/"/g, '""')}"`,
-          `"${(a.street_name || '').replace(/"/g, '""')}"`,
-          `"${(a.collection_area || '').replace(/"/g, '""')}"`,
-          `"${(a.sub_collection_area || '').replace(/"/g, '""')}"`,
-          `"${(a.upn || '').replace(/"/g, '""')}"`,
-          `"${(a.property_address || '').replace(/"/g, '""')}"`,
-          /* ================================================================
-             FUTURE BILLING DATA COLUMNS — Commented out for data-collection phase
-             Re-enable alongside header columns above when billing is activated:
-          `"${(a.valuation_number || '').replace(/"/g, '""')}"`,
-          `"${(a.use_code || '').replace(/"/g, '""')}"`,
-          a.rateable_value || '',
-          a.rate_impost || '',
-             ================================================================ */
-          `"${(a.business_type || '').replace(/"/g, '""')}"`,
-          `"${(a.business_category || '').replace(/"/g, '""')}"`,
-          `"${(a.services_provided || '').replace(/"/g, '""')}"`,
-          `"${r.status || ''}"`,
-          `"${r.zone_name || ''}"`,
-          `"${r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}"`,
+          escapeCell(firstname),
+          escapeCell(lastname),
+          '""',
+          escapeCell(phone),
+          '""',
+          escapeCell(company),
+          '""',
+          escapeCell(phone),
+          escapeCell('Ghana'),
+          '""',
+          '""',
+          '""',
+          escapeCell(propAddress),
+          '""',
+          escapeCell(street),
+          '""',
+          '""',
+          '""',
+          escapeCell('Ghana'),
+          '""',
+          '""',
+          '""',
+          '""',
+          '""',
+          r.longitude != null ? r.longitude : '',
+          r.latitude != null ? r.latitude : '',
+          '""',
+          escapeCell(ghanaPost),
+          escapeCell(a.landmark || ''),
+          escapeCell(a.business_type || ''),
+          escapeCell(a.business_category || ''),
+          escapeCell(a.services_provided || ''),
+          escapeCell(a.valuation_number || ''),
+          escapeCell(a.use_code || ''),
+          escapeCell(zoneName),
+          escapeCell(a.upn || ''),
+          escapeCell(propAddress),
+          escapeCell(ghanaPost),
+          escapeCell(street),
+          escapeCell(a.collection_area || ''),
+          escapeCell(a.sub_collection_area || ''),
+          a.rateable_value != null && a.rateable_value !== '' ? a.rateable_value : '""',
+          a.rate_impost != null && a.rate_impost !== '' ? a.rate_impost : '""',
         ].join(',');
       });
 
@@ -121,7 +166,7 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `approved_field_records_${Date.now()}.csv`);
+      link.setAttribute('download', `zebrarms_export_${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -221,9 +266,10 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
             type="button"
             onClick={handleExportApprovedCSV}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
+            title="Download ZebraRMS compatible CSV import template"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Download Approved CSV ({approvedCount})</span>
+            <span>Export for ZebraRMS (CSV) ({approvedCount})</span>
           </button>
         </div>
       </div>

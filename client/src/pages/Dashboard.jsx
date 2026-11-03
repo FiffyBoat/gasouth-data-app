@@ -4,7 +4,6 @@ import {
   ShieldCheck,
   Award,
   ArrowRight,
-  Plus,
 } from 'lucide-react';
 import StatsCards from '../components/dashboard/StatsCards';
 import CoverageMap from '../components/dashboard/CoverageMap';
@@ -131,15 +130,7 @@ export default function Dashboard() {
             </>
           )}
 
-          {hasRole('collector') && (
-            <Link
-              to="/capture"
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-transform active:scale-95"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>Capture New Record</span>
-            </Link>
-          )}
+
 
           {isSupervisor && (
             <Link
