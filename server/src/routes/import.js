@@ -16,19 +16,22 @@ import { authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Multer: accept CSV and Excel files in memory (no disk write needed)
+// Multer: accept CSV and Excel files in memory (no disk write needed, up to 30 MB)
 const importUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
-  fileFilter: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    if (['.csv', '.xlsx', '.xls'].includes(ext)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only CSV and Excel (.xlsx / .xls) files are supported'));
-    }
-  },
+  limits: { fileSize: 30 * 1024 * 1024 },
 });
+
+// Middleware to safely catch any multer / multipart stream errors and return clean JSON
+const safeUpload = (req, res, next) => {
+  importUpload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('File upload stream error:', err);
+      return res.status(400).json({ error: `Upload error: ${err.message}` });
+    }
+    next();
+  });
+};
 
 // ---------------------------------------------------------------------------
 // Column name normaliser — strips whitespace, lowercases, collapses spaces
@@ -42,23 +45,28 @@ function normalise(str) {
 
 // ---------------------------------------------------------------------------
 // Parse the uploaded file into an array of plain row objects
+// Uses XLSX library which seamlessly parses CSV, XLSX, and XLS with full
+// quoting, UTF-8, and multi-line cell support.
 // ---------------------------------------------------------------------------
 async function parseFile(buffer, originalname) {
-  const ext = path.extname(originalname).toLowerCase();
-
-  if (ext === '.csv') {
-    // Simple RFC-4180 CSV parser (no external package needed)
-    const text = buffer.toString('utf8');
-    return csvToObjects(text);
+  // 1. Try XLSX parser first (handles CSV, XLSX, XLS with full character encoding)
+  try {
+    const XLSX = (await import('xlsx')).default || (await import('xlsx'));
+    const wb = XLSX.read(buffer, { type: 'buffer', raw: false, cellDates: true });
+    if (wb && wb.SheetNames && wb.SheetNames.length > 0) {
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+      if (rows && rows.length > 0) {
+        return rows;
+      }
+    }
+  } catch (xlsxErr) {
+    console.warn('XLSX parser fallback to raw text CSV:', xlsxErr.message);
   }
 
-  // Excel — requires xlsx package
-  const XLSX = (await import('xlsx')).default;
-  const wb = XLSX.read(buffer, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  // header:1 gives array-of-arrays; defval:'', raw:false converts numbers to strings
-  const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
-  return rows;
+  // 2. Fallback to raw text CSV parser (stripping UTF-8 BOM if present)
+  const text = buffer.toString('utf8').replace(/^\uFEFF/, '');
+  return csvToObjects(text);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,8 +275,8 @@ function mapRow(row, zonesByName) {
 router.post(
   '/import',
   authenticate,
-  authorize('admin', 'supervisor'),
-  importUpload.single('file'),
+  authorize('admin', 'supervisor', 'budget_director'),
+  safeUpload,
   async (req, res) => {
     try {
       if (!req.file) {

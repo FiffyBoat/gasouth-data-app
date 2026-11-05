@@ -89,19 +89,23 @@ export default function Records() {
     try {
       const fd = new FormData();
       fd.append('file', importFile);
-      const res = await api.post('/api/records/import', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // No manual Content-Type header so browser computes multipart/form-data with proper boundary
+      const res = await api.post('/api/records/import', fd);
       setImportResult(res.data);
       setImportFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       fetchRecords();
     } catch (err) {
+      console.error('Import request error:', err.response?.data || err);
+      const serverMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        (err.message === 'Network Error' ? 'Network error: could not connect to server.' : err.message);
       setImportResult({
-        message: err.response?.data?.error || 'Import failed. Please check your file and try again.',
+        message: serverMsg || 'Import failed. Please check your file and try again.',
         imported: 0,
         skipped: 0,
-        errors: [],
+        errors: err.response?.data?.errors || [],
       });
     } finally {
       setImportLoading(false);

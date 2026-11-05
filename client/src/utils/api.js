@@ -19,12 +19,16 @@ const api = axios.create({
   timeout: 30000,
 });
 
-/* ---------- Request interceptor: attach JWT ---------- */
+/* ---------- Request interceptor: attach JWT & handle FormData ---------- */
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('zebra_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // When sending FormData, remove Content-Type so browser auto-sets multipart/form-data WITH boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
     }
     return config;
   },
