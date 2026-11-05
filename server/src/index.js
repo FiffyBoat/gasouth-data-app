@@ -130,6 +130,30 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Public stats endpoint — returns DB record counts (no auth required)
+app.get('/api/health/stats', async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        COUNT(*)                                              AS total,
+        COUNT(*) FILTER (WHERE status = 'draft')             AS draft,
+        COUNT(*) FILTER (WHERE status = 'submitted')         AS submitted,
+        COUNT(*) FILTER (WHERE status = 'approved')          AS approved,
+        COUNT(*) FILTER (WHERE status = 'rejected')          AS rejected,
+        COUNT(*) FILTER (WHERE capture_method = 'imported')  AS imported,
+        COUNT(*) FILTER (WHERE latitude IS NULL)             AS pending_gps
+      FROM records
+    `);
+    res.json({
+      timestamp: new Date().toISOString(),
+      counts: result.rows[0],
+    });
+  } catch (err) {
+    console.error('Stats query error:', err);
+    res.status(500).json({ error: 'Failed to query stats' });
+  }
+});
+
 // Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/records', recordsRoutes);
