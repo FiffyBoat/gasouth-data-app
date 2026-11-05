@@ -130,10 +130,10 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Public stats endpoint — returns DB record counts (no auth required)
+// Public stats endpoint — returns DB record counts & duplicate analysis (no auth required)
 app.get('/api/health/stats', async (req, res) => {
   try {
-    const result = await query(`
+    const countsResult = await query(`
       SELECT
         COUNT(*)                                              AS total,
         COUNT(*) FILTER (WHERE status = 'draft')             AS draft,
@@ -141,16 +141,62 @@ app.get('/api/health/stats', async (req, res) => {
         COUNT(*) FILTER (WHERE status = 'approved')          AS approved,
         COUNT(*) FILTER (WHERE status = 'rejected')          AS rejected,
         COUNT(*) FILTER (WHERE capture_method = 'imported')  AS imported,
-        COUNT(*) FILTER (WHERE latitude IS NULL)             AS pending_gps
+        COUNT(*) FILTER (WHERE latitude IS NULL)             AS pending_gps,
+        COUNT(DISTINCT attributes->>'bill_number')           AS unique_bill_numbers,
+        COUNT(*) FILTER (WHERE attributes->>'bill_number' IS NOT NULL) AS records_with_bill_number
       FROM records
     `);
+
+    // Check for duplicate bill numbers
+    const dupResult = await query(`
+      SELECT attributes->>'bill_number' AS bill_no, COUNT(*) AS occurrences
+      FROM records
+      WHERE attributes->>'bill_number' IS NOT NULL
+      GROUP BY attributes->>'bill_number'
+      HAVING COUNT(*) > 1
+    `);
+
     res.json({
       timestamp: new Date().toISOString(),
-      counts: result.rows[0],
+      counts: countsResult.rows[0],
+      duplicates: {
+        duplicate_bill_groups: dupResult.rowCount,
+        total_excess_records: dupResult.rows.reduce((sum, r) => sum + (parseInt(r.occurrences, 10) - 1), 0),
+        sample_duplicates: dupResult.rows.slice(0, 5),
+      },
     });
   } catch (err) {
     console.error('Stats query error:', err);
     res.status(500).json({ error: 'Failed to query stats' });
+  }
+});
+
+// Endpoint to remove duplicate imported drafts, keeping only 1 copy per bill_number
+app.post('/api/health/deduplicate', async (req, res) => {
+  try {
+    // Delete older duplicate records that share the same bill_number, keeping the highest/newest ID
+    const deleteResult = await query(`
+      DELETE FROM records
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (PARTITION BY attributes->>'bill_number' ORDER BY created_at DESC, id DESC) as rn
+          FROM records
+          WHERE capture_method = 'imported' AND attributes->>'bill_number' IS NOT NULL
+        ) t
+        WHERE t.rn > 1
+      )
+      RETURNING id
+    `);
+
+    res.json({
+      success: true,
+      message: `Deduplication complete. Removed ${deleteResult.rowCount} duplicate records.`,
+      removed_count: deleteResult.rowCount,
+    });
+  } catch (err) {
+    console.error('Deduplicate error:', err);
+    res.status(500).json({ error: 'Failed to deduplicate records' });
   }
 });
 
