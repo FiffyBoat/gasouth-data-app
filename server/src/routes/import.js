@@ -302,6 +302,14 @@ router.post(
         zonesByName[normalise(z.name)] = z.id;
       }
 
+      // Preload existing bill numbers to prevent duplicate imports
+      const existingBillsRes = await query(`
+        SELECT attributes->>'bill_number' AS bill_no
+        FROM records
+        WHERE attributes->>'bill_number' IS NOT NULL
+      `);
+      const existingBills = new Set(existingBillsRes.rows.map(r => r.bill_no).filter(Boolean));
+
       let imported = 0;
       let skipped  = 0;
       const errors = [];
@@ -321,6 +329,17 @@ router.post(
               errors.push({ row: rowNum, reason: 'Invalid GPS coordinates — skipped' });
               continue;
             }
+
+            // Duplicate prevention: skip if bill number already in DB or seen in this batch
+            const billNo = mapped.attributes?.bill_number;
+            if (billNo && existingBills.has(billNo)) {
+              skipped++;
+              continue;
+            }
+            if (billNo) {
+              existingBills.add(billNo);
+            }
+
             validMapped.push({ mapped, rowNum });
           } catch (rowErr) {
             skipped++;
