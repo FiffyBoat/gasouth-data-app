@@ -89,8 +89,10 @@ export default function Records() {
     try {
       const fd = new FormData();
       fd.append('file', importFile);
-      // No manual Content-Type header so browser computes multipart/form-data with proper boundary
-      const res = await api.post('/api/records/import', fd);
+      // Extended 3-minute timeout for large batch imports (e.g. 2,000+ rows)
+      const res = await api.post('/api/records/import', fd, {
+        timeout: 180000,
+      });
       setImportResult(res.data);
       setImportFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
