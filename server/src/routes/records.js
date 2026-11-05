@@ -144,6 +144,7 @@ router.get('/', authenticate, async (req, res) => {
       search,
       start_date,
       end_date,
+      no_gps,
       limit = 50,
       offset = 0,
     } = req.query;
@@ -179,6 +180,10 @@ router.get('/', authenticate, async (req, res) => {
     if (status) {
       conditions.push(`r.status = $${paramIndex++}`);
       params.push(status);
+    }
+
+    if (no_gps === '1' || no_gps === 'true') {
+      conditions.push('(r.latitude IS NULL OR r.longitude IS NULL)');
     }
 
     if (zone_id) {
@@ -538,7 +543,7 @@ router.get('/:id', authenticate, async (req, res) => {
 
     // Fetch photos
     const photosResult = await query(
-      `SELECT id, file_path, thumbnail_path, original_name, size_bytes, mime_type, sort_order, uploaded_at
+      `SELECT id, file_path, thumbnail_path, original_name, size_bytes, mime_type, sort_order, uploaded_at, data_url
        FROM photos
        WHERE record_id = $1
        ORDER BY sort_order ASC, uploaded_at ASC`,
@@ -598,24 +603,30 @@ router.post(
         device_info,
       } = req.body;
 
-      // Detect containing zone automatically using PostGIS
-      const detectedZoneId = await findZoneForPoint(latitude, longitude);
+      // Detect containing zone automatically using PostGIS (only when GPS present)
+      const hasGps = latitude != null && longitude != null;
+      const detectedZoneId = hasGps ? await findZoneForPoint(latitude, longitude) : null;
 
       // Check geofence if user has an assigned zone
       let geofenceWarning = null;
-      if (req.user.assigned_zone_id && detectedZoneId && req.user.assigned_zone_id !== detectedZoneId) {
+      if (hasGps && req.user.assigned_zone_id && detectedZoneId && req.user.assigned_zone_id !== detectedZoneId) {
         geofenceWarning = 'Location is outside your assigned municipal zone.';
       }
 
       // Check duplicate records
       let potentialDuplicates = [];
-      if (owner_name) {
+      if (hasGps && owner_name) {
         potentialDuplicates = await checkDuplicates(latitude, longitude, owner_name);
       }
 
       const client = await getClient();
       try {
         await client.query('BEGIN');
+
+        // Build location SQL conditionally — imported drafts may have no GPS
+        const locationSql = hasGps
+          ? 'ST_SetSRID(ST_MakePoint($2, $3), 4326)'
+          : 'NULL';
 
         const insertSql = `
           INSERT INTO records (
@@ -625,7 +636,7 @@ router.post(
             zone_id, created_by, device_info, capture_time
           )
           VALUES (
-            $1, ST_SetSRID(ST_MakePoint($2, $3), 4326), $3, $2, $4, $5,
+            $1, ${locationSql}, $3, $2, $4, $5,
             $6, $7, $8, $9,
             $10, $11, $12, $13,
             $14, $15, $16, now()
@@ -635,11 +646,11 @@ router.post(
 
         const result = await client.query(insertSql, [
           recordModule,
-          longitude, // X
-          latitude,  // Y
+          hasGps ? longitude : null, // $2 = X / lng
+          hasGps ? latitude : null,  // $3 = Y / lat
           altitude || null,
           accuracy_m || null,
-          capture_method,
+          capture_method || null,
           ghana_post_address || null,
           owner_name || null,
           owner_phone || null,
@@ -731,17 +742,23 @@ router.put(
         attributes = {},
       } = req.body;
 
-      const detectedZoneId = await findZoneForPoint(latitude, longitude);
+      const hasGps = latitude != null && longitude != null;
+      const detectedZoneId = hasGps ? await findZoneForPoint(latitude, longitude) : null;
 
       const client = await getClient();
       try {
         await client.query('BEGIN');
 
+        // Build SET clause conditionally — only update location when GPS provided
+        const locationSetSql = hasGps
+          ? 'location = ST_SetSRID(ST_MakePoint($2, $3), 4326),'
+          : '';
+
         const updateSql = `
           UPDATE records
           SET
             module = $1,
-            location = ST_SetSRID(ST_MakePoint($2, $3), 4326),
+            ${locationSetSql}
             latitude = $3,
             longitude = $2,
             altitude = $4,
@@ -753,7 +770,7 @@ router.put(
             owner_id_type = $10,
             owner_id_number = $11,
             attributes = $12,
-            zone_id = $13,
+            zone_id = COALESCE($13, zone_id),
             updated_at = now()
           WHERE id = $14
           RETURNING *;
@@ -761,11 +778,11 @@ router.put(
 
         const result = await client.query(updateSql, [
           recordModule,
-          longitude,
-          latitude,
+          hasGps ? longitude : null,
+          hasGps ? latitude : null,
           altitude || null,
           accuracy_m || null,
-          capture_method,
+          capture_method || null,
           ghana_post_address || null,
           owner_name || null,
           owner_phone || null,

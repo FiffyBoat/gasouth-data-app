@@ -129,12 +129,22 @@ router.post(
           } catch (_) {}
         }
 
+        // Read file as base64 and store as data_url for persistent serving
+        // (Render has ephemeral disk — storing in DB ensures photos survive redeploys)
+        let dataUrl = null;
+        try {
+          const fileBuffer = fs.readFileSync(file.path);
+          dataUrl = `data:${file.mimetype};base64,${fileBuffer.toString('base64')}`;
+        } catch (readErr) {
+          console.warn('Could not encode photo as data_url:', readErr.message);
+        }
+
         const insertRes = await query(
           `INSERT INTO photos (
             record_id, file_path, thumbnail_path, original_name,
-            size_bytes, mime_type, sort_order
+            size_bytes, mime_type, sort_order, data_url
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           RETURNING *;`,
           [
             id,
@@ -144,6 +154,7 @@ router.post(
             file.size,
             file.mimetype,
             existingCount + i,
+            dataUrl,
           ]
         );
 

@@ -221,6 +221,11 @@ export function filterRecordsBySql(records, sql, params = []) {
     }
   }
 
+  // Match no_gps filter
+  if (sql.includes('latitude IS NULL') || sql.includes('longitude IS NULL')) {
+    filtered = filtered.filter((r) => r.latitude == null || r.longitude == null);
+  }
+
   // Match search (ILIKE $k)
   const searchMatch = sql.match(/ILIKE\s*\$(\d+)/i);
   if (searchMatch) {
@@ -600,6 +605,7 @@ export async function executeFallbackQuery(sqlText, params = []) {
       size_bytes: params[4],
       mime_type: params[5],
       sort_order: params[6] || 0,
+      data_url: params[7] || null,
       uploaded_at: new Date().toISOString(),
     };
     dbState.photos.push(newPhoto);

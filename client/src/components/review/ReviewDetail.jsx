@@ -403,8 +403,8 @@ export default function ReviewDetail({
         {record.photos && record.photos.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {record.photos.map((p, i) => {
-              const fullUrl = getPhotoUrl(p.file_path);
-              const thumbUrl = getPhotoUrl(p.thumbnail_path) || fullUrl;
+              const fullUrl = p.data_url || getPhotoUrl(p.file_path);
+              const thumbUrl = p.data_url || getPhotoUrl(p.thumbnail_path) || fullUrl;
 
               return (
                 <a

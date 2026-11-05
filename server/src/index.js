@@ -17,6 +17,8 @@ import photosRoutes from './routes/photos.js';
 import zonesRoutes from './routes/zones.js';
 import usersRoutes from './routes/users.js';
 import dashboardRoutes from './routes/dashboard.js';
+import importRoutes from './routes/import.js';
+import { query } from './config/database.js';
 
 dotenv.config();
 
@@ -77,8 +79,9 @@ if (configuredUploadDir) {
   app.use('/uploads', express.static(configuredUploadDir, { maxAge: '1d', fallthrough: true }));
 }
 
-// Fallback upload resolver: directly stream file if found in either location
-app.get('/uploads/*', (req, res, next) => {
+// Fallback upload resolver: serve from DB data_url when file no longer on disk
+// (Render ephemeral disk wipes uploads on each deploy — data_url in DB persists)
+app.get('/uploads/*', async (req, res, next) => {
   const relPath = req.params[0];
   const candidates = [
     path.join(serverUploadDir, relPath),
@@ -91,6 +94,29 @@ app.get('/uploads/*', (req, res, next) => {
       return res.sendFile(p);
     }
   }
+
+  // File not on disk — try to serve from data_url stored in DB
+  try {
+    const filename = path.basename(relPath);
+    const dbRes = await query(
+      `SELECT data_url, mime_type FROM photos
+       WHERE file_path LIKE $1 OR thumbnail_path LIKE $1
+       LIMIT 1`,
+      [`%${filename}%`]
+    );
+    const row = dbRes.rows[0];
+    if (row?.data_url) {
+      const commaIdx = row.data_url.indexOf(',');
+      const b64 = commaIdx !== -1 ? row.data_url.slice(commaIdx + 1) : row.data_url;
+      const buf = Buffer.from(b64, 'base64');
+      res.setHeader('Content-Type', row.mime_type || 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(buf);
+    }
+  } catch (dbErr) {
+    console.warn('DB data_url fallback failed:', dbErr.message);
+  }
+
   res.status(404).json({ error: 'Photo not found on server storage' });
 });
 
@@ -111,6 +137,7 @@ app.use('/api/records', photosRoutes); // POST /api/records/:id/photos  +  DELET
 app.use('/api/zones', zonesRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/records', importRoutes); // POST /api/records/import
 
 // --- Serve React Client in Production ---
 const clientDistPath = path.resolve(__dirname, '../../client/dist');

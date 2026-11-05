@@ -33,10 +33,12 @@ export const validateRecord = [
     .withMessage('Module must be one of: property, business, market_stall'),
 
   body('latitude')
+    .optional({ values: 'null' })
     .isFloat({ min: -90, max: 90 })
     .withMessage('Latitude must be between -90 and 90'),
 
   body('longitude')
+    .optional({ values: 'null' })
     .isFloat({ min: -180, max: 180 })
     .withMessage('Longitude must be between -180 and 180'),
 
@@ -51,8 +53,9 @@ export const validateRecord = [
     .withMessage('Accuracy must be a positive number'),
 
   body('capture_method')
-    .isIn(['device-gps', 'averaged', 'manual-pin'])
-    .withMessage('Capture method must be one of: device-gps, averaged, manual-pin'),
+    .optional({ values: 'null' })
+    .isIn(['device-gps', 'averaged', 'manual-pin', 'imported'])
+    .withMessage('Capture method must be one of: device-gps, averaged, manual-pin, imported'),
 
   body('ghana_post_address')
     .optional({ values: 'null' })

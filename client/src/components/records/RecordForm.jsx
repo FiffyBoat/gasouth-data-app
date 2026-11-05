@@ -99,6 +99,17 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
     }
   };
 
+  // Preload GPS coordinates if editing an existing record with location
+  useEffect(() => {
+    if (initialRecord?.latitude != null && initialRecord?.longitude != null) {
+      geo.setManualPosition(
+        parseFloat(initialRecord.latitude),
+        parseFloat(initialRecord.longitude),
+        parseFloat(initialRecord.accuracy_m) || 10
+      );
+    }
+  }, [initialRecord]);
+
   // Load from autosave on initial mount if not editing an existing record
   useEffect(() => {
     if (!initialRecord) {
@@ -212,13 +223,8 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
-    } else {
-      // Draft mode: only checks GPS coordinates
-      if (geo.latitude == null || geo.longitude == null) {
-        alert('Please capture or select the GPS location before saving a draft.');
-        return;
-      }
     }
+    // Draft mode allows saving without mandatory GPS (e.g. pre-loaded imported items or in-progress visits)
 
     setFormErrors({});
 
@@ -228,7 +234,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       longitude: geo.longitude,
       altitude: geo.altitude,
       accuracy_m: geo.accuracy,
-      capture_method: geo.captureMethod || 'device-gps',
+      capture_method: geo.captureMethod || (initialRecord?.capture_method || (geo.latitude ? 'device-gps' : null)),
       ghana_post_address: ghanaPostAddress || null,
       owner_name: ownerName?.trim() || null,
       owner_phone: ownerPhone?.trim() || null,

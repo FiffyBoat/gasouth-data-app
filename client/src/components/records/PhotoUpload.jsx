@@ -120,7 +120,7 @@ export default function PhotoUpload({
       {/* Grid of photo thumbnails */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {photos.map((photo, idx) => {
-          const imgSrc = photo.previewUrl || getPhotoUrl(photo.thumbnail_path) || getPhotoUrl(photo.file_path);
+          const imgSrc = photo.previewUrl || photo.data_url || getPhotoUrl(photo.thumbnail_path) || getPhotoUrl(photo.file_path);
           return (
             <div
               key={idx}
@@ -252,7 +252,7 @@ export default function PhotoUpload({
 
             <div className="overflow-auto p-2 flex items-center justify-center bg-black/60">
               <img
-                src={previewModalPhoto.previewUrl || getPhotoUrl(previewModalPhoto.file_path)}
+                src={previewModalPhoto.previewUrl || previewModalPhoto.data_url || getPhotoUrl(previewModalPhoto.file_path)}
                 alt="Full Geotagged View"
                 className="max-h-[75vh] w-auto object-contain rounded-lg shadow-md"
               />

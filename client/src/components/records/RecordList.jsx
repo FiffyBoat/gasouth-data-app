@@ -13,6 +13,7 @@ import {
   Download,
   CheckCircle2,
   Globe,
+  AlertTriangle,
 } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
@@ -25,7 +26,7 @@ const MODULE_ICONS = {
   market_stall: ShoppingBag,
 };
 
-export default function RecordList({ records = [], loading, onDeleteRecord }) {
+export default function RecordList({ records = [], loading, onDeleteRecord, showPendingGpsBadge = false }) {
   const { user, hasRole } = useAuth();
 
   const handleExportApprovedCSV = async () => {
@@ -358,6 +359,12 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <StatusBadge status={r.status} />
+                        {!r.latitude && (
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                            <AlertTriangle className="w-2.5 h-2.5" />
+                            GPS Pending
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
                         {new Date(r.created_at).toLocaleDateString()}
@@ -372,8 +379,20 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
                           View
                         </Link>
 
+                        {/* Complete GPS Capture — shown when no GPS */}
+                        {!r.latitude && canEdit && (
+                          <Link
+                            to={`/capture?edit=${r.id}`}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-semibold rounded-lg text-xs inline-flex items-center gap-1 transition-colors"
+                            title="Go to this property and capture GPS coordinates"
+                          >
+                            <MapPin className="w-3 h-3" />
+                            Capture GPS
+                          </Link>
+                        )}
+
                         {/* UPDATE */}
-                        {canEdit && (
+                        {canEdit && r.latitude && (
                           <Link
                             to={`/capture?edit=${r.id}`}
                             className="px-2.5 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 font-semibold rounded-lg text-xs inline-flex items-center gap-1 transition-colors"
@@ -438,7 +457,15 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
                         </span>
                       </div>
                     </div>
-                    <StatusBadge status={r.status} />
+                    <div className="flex flex-col items-end gap-1">
+                      <StatusBadge status={r.status} />
+                      {!r.latitude && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          GPS Pending
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 font-mono">
@@ -463,7 +490,19 @@ export default function RecordList({ records = [], loading, onDeleteRecord }) {
                       View Details
                     </Link>
 
-                    {canEdit && (
+                    {/* Capture GPS button for imported records without location */}
+                    {!r.latitude && canEdit && (
+                      <Link
+                        to={`/capture?edit=${r.id}`}
+                        className="px-3 py-1.5 bg-amber-50 text-amber-700 font-semibold rounded-lg flex items-center gap-1"
+                        title="Go to this property to capture GPS coordinates"
+                      >
+                        <MapPin className="w-3 h-3" />
+                        Capture GPS
+                      </Link>
+                    )}
+
+                    {canEdit && r.latitude && (
                       <Link
                         to={`/capture?edit=${r.id}`}
                         className="px-3 py-1.5 bg-primary-50 text-primary-700 font-semibold rounded-lg flex items-center gap-1"
