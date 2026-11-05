@@ -108,7 +108,23 @@ function parseCsvRow(line) {
 }
 
 // ---------------------------------------------------------------------------
-// ZebraRMS 43-column → DCS record field mapping
+// Phone number cleaner: handles Ghanaian numbers with or without leading zero
+// e.g. "244451982" -> "0244451982", "233244451982" -> "0244451982"
+// ---------------------------------------------------------------------------
+function cleanPhoneNumber(raw) {
+  if (!raw) return null;
+  let digits = String(raw).replace(/[^0-9]/g, '');
+  if (!digits) return null;
+  if (digits.length === 9) {
+    digits = '0' + digits;
+  } else if (digits.length === 12 && digits.startsWith('233')) {
+    digits = '0' + digits.slice(3);
+  }
+  return digits;
+}
+
+// ---------------------------------------------------------------------------
+// ZebraRMS (File 1) & GSMA Billing Ledger (File 2) → DCS record field mapping
 // ---------------------------------------------------------------------------
 function mapRow(row, zonesByName) {
   // Helper: find raw value by any matching header variant
@@ -125,11 +141,16 @@ function mapRow(row, zonesByName) {
     return '';
   };
 
-  const firstName  = get('Firstname', 'First Name', 'First_Name');
-  const lastName   = get('Lastname', 'Last Name', 'Last_Name', 'Surname');
-  const ownerName  = [firstName, lastName].filter(Boolean).join(' ') || get('Owner Name', 'Owner');
-  const ownerPhone = get('Contact phonenumber', 'Phone', 'Phone Number', 'Contact', 'Mobile');
+  // 1. Ratepayer / Owner Name
+  const firstName = get('Firstname', 'First Name', 'First_Name');
+  const lastName  = get('Lastname', 'Last Name', 'Last_Name', 'Surname');
+  const ownerName = [firstName, lastName].filter(Boolean).join(' ') || get('Ratepayer', 'Owner Name', 'Owner', 'Company');
 
+  // 2. Phone Number (cleaned with leading 0)
+  const rawPhone   = get('Contact phonenumber', 'Phonenumber', 'Phone', 'Phone Number', 'Contact', 'Mobile');
+  const ownerPhone = cleanPhoneNumber(rawPhone);
+
+  // 3. Geocoordinates
   const latRaw  = get('Latitude', 'lat');
   const lngRaw  = get('Longitude', 'lng', 'long', 'Lon');
   const latitude  = latRaw  ? parseFloat(latRaw)  : null;
@@ -139,49 +160,99 @@ function mapRow(row, zonesByName) {
   if (latitude  != null && (isNaN(latitude)  || latitude  < -90  || latitude  > 90))  return null;
   if (longitude != null && (isNaN(longitude) || longitude < -180 || longitude > 180)) return null;
 
-  const ghanaPostAddress = get('Ghana Post Code', 'GhanaPost', 'Location') || null;
+  // 4. Locality & Address
+  const rawLocation = get('Location', 'Ghana Post Code', 'GhanaPost');
+  const ghanaPostAddress = get('Ghana Post Code', 'GhanaPost') || (rawLocation && /^GS[-\d]+/i.test(rawLocation) ? rawLocation : null);
 
-  // Zone lookup by name
+  // 5. Zone lookup: first try explicit Zone, then infer from Location / Collection Area
+  let zoneId = null;
   const zoneName = get('Zone', 'Zone Name');
-  const zoneId   = zoneName ? (zonesByName[normalise(zoneName)] ?? null) : null;
+  if (zoneName && zonesByName[normalise(zoneName)]) {
+    zoneId = zonesByName[normalise(zoneName)];
+  } else {
+    // In File 2, Zone is often empty while Location has the suburb (e.g. AMANFRO, GALILEA, TUBA)
+    const loc = normalise(get('Location', 'Collection Area', 'Sub Collection Area'));
+    if (loc) {
+      for (const [zName, zId] of Object.entries(zonesByName)) {
+        if (zName.includes(loc) || loc.includes(zName)) {
+          zoneId = zId;
+          break;
+        }
+      }
+      // Common locality heuristics
+      if (!zoneId) {
+        if (loc.includes('amanfro') || loc.includes('amanfrom')) {
+          zoneId = Object.entries(zonesByName).find(([k]) => k.includes('amanfro'))?.[1] || null;
+        } else if (loc.includes('galilea') || loc.includes('iron city')) {
+          zoneId = Object.entries(zonesByName).find(([k]) => k.includes('galilea'))?.[1] || null;
+        } else if (loc.includes('kasoa')) {
+          zoneId = Object.entries(zonesByName).find(([k]) => k.includes('kasoa'))?.[1] || null;
+        } else if (loc.includes('kokrobite') || loc.includes('langma') || loc.includes('oshiyie')) {
+          zoneId = Object.entries(zonesByName).find(([k]) => k.includes('kokrobite'))?.[1] || null;
+        }
+      }
+    }
+  }
 
-  // Module detection
-  const businessType     = get('Business Type');
-  const businessCategory = get('Business Category', 'Category');
+  // 6. Business Classification Mapping
+  // User Rule: Map 'Service(s) Provided' -> service_provided, and map the rest accordingly
   const servicesProvided = get('Service(s) Provided', 'Services Provided', 'Services');
-  const recordModule     = (businessType || businessCategory || servicesProvided) ? 'business' : 'property';
+  // 'Description' in File 2 is the broad sector (e.g. Pharmaceutical Companies, Service / Filling Stations) -> business_category
+  const businessCategory = get('Business Category', 'Category') || get('Description');
+  // 'Long Description' in File 2 is the tariff item scale (e.g. CAT D - Retail Pharmacy (Large)) -> business_type
+  const rawBusinessType  = get('Business Type');
+  const longDescription  = get('Long Description');
+  const businessType     = (rawBusinessType && rawBusinessType.length > 3 ? rawBusinessType : null) || longDescription || rawBusinessType;
 
-  // Build attributes from ZebraRMS columns
+  // Module detection: if any business field is present -> business, else -> property
+  const recordModule = (servicesProvided || businessCategory || businessType || get('Bill Number')) ? 'business' : 'property';
+
+  // 7. Build complete attributes (cleanly namespaced)
   const attributes = {
     // Property / address
-    property_address:    get('Property Address', 'Address', 'Billing street') || undefined,
+    property_address:    get('Property Address', 'Address', 'Billing street') || rawLocation || undefined,
     street_name:         get('Street Name', 'Street', 'Billing street') || undefined,
+    locality:            get('Location') || undefined,
     landmark:            get('Landmark') || undefined,
     collection_area:     get('Collection Area') || undefined,
     sub_collection_area: get('Sub Collection Area', 'Sub-Collection Area') || undefined,
     upn:                 get('UPN', 'Unique Property Number') || undefined,
     valuation_number:    get('Valuation Number', 'Valuation No') || undefined,
     use_code:            get('Use Code') || undefined,
-    // Business
+    // Business Classification
     business_type:       businessType || undefined,
     business_category:   businessCategory || undefined,
     services_provided:   servicesProvided || undefined,
-    // Financial
-    rateable_value:      get('Rateable Value') || undefined,
+    // Municipal Ledger & Bill Cross-References
+    bill_number:         get('Bill Number', 'Bill No') || undefined,
+    bill_id:             get('Bill ID') || undefined,
+    client_id:           get('Client ID') || undefined,
+    revenue_officer:     get('Revenue Officer') || undefined,
+    legacy_created_by:   get('Created By') || undefined,
+    // Financial Information (Reference for future billing)
+    item_rate:           get('Item Rate') || undefined,
+    sub_total:           get('Sub Total') || undefined,
+    arrears:             get('Arrears') || undefined,
+    discount:            get('Discount') || undefined,
+    total_amount_payable:get('Total Amount Payable') || undefined,
+    amount_paid:         get('Amount Paid') || undefined,
+    outstanding_amount:  get('Outstanding Amount') || undefined,
+    payment_status:      get('Payment Status') || undefined,
+    rateable_value:      get('Rateable Value') || get('Total Amount Payable') || undefined,
     rate_impost:         get('Rate Impost') || undefined,
   };
 
-  // Strip undefined values
+  // Strip empty/undefined keys
   Object.keys(attributes).forEach((k) => {
-    if (!attributes[k]) delete attributes[k];
+    if (attributes[k] === undefined || attributes[k] === '') delete attributes[k];
   });
 
   return {
     module:              recordModule,
     latitude:            latitude,
     longitude:           longitude,
-    ghana_post_address:  ghanaPostAddress,
-    owner_name:          ownerName || null,
+    ghana_post_address:  ghanaPostAddress || (rawLocation ? String(rawLocation).slice(0, 50) : null),
+    owner_name:          ownerName || 'Unnamed Ratepayer',
     owner_phone:         ownerPhone || null,
     attributes,
     zone_id:             zoneId,
@@ -227,50 +298,119 @@ router.post(
       let skipped  = 0;
       const errors = [];
 
-      for (let i = 0; i < rows.length; i++) {
-        const rowNum = i + 2; // spreadsheet row (1-indexed, header = row 1)
-        try {
-          const mapped = mapRow(rows[i], zonesByName);
-          if (!mapped) {
+      // Batch insert in chunks of 50 for high performance with 1,000+ row files
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE);
+        const validMapped = [];
+
+        for (let j = 0; j < batch.length; j++) {
+          const rowNum = i + j + 2; // spreadsheet row (1-indexed, header = row 1)
+          try {
+            const mapped = mapRow(batch[j], zonesByName);
+            if (!mapped) {
+              skipped++;
+              errors.push({ row: rowNum, reason: 'Invalid GPS coordinates — skipped' });
+              continue;
+            }
+            validMapped.push({ mapped, rowNum });
+          } catch (rowErr) {
             skipped++;
-            errors.push({ row: rowNum, reason: 'Invalid GPS coordinates — skipped' });
-            continue;
+            errors.push({ row: rowNum, reason: rowErr.message });
+          }
+        }
+
+        if (validMapped.length === 0) continue;
+
+        // Try fast multi-row batch insert
+        try {
+          const valueClauses = [];
+          const params = [];
+          let pIdx = 1;
+
+          for (const item of validMapped) {
+            const m = item.mapped;
+            const hasGps = m.latitude != null && m.longitude != null;
+            const lngP = pIdx++;
+            const latP = pIdx++;
+            const modP = pIdx++;
+            const capP = pIdx++;
+            const gpP  = pIdx++;
+            const ownP = pIdx++;
+            const phP  = pIdx++;
+            const attP = pIdx++;
+            const staP = pIdx++;
+            const zonP = pIdx++;
+            const usrP = pIdx++;
+
+            params.push(
+              hasGps ? m.longitude : null,
+              hasGps ? m.latitude : null,
+              m.module,
+              m.capture_method,
+              m.ghana_post_address,
+              m.owner_name,
+              m.owner_phone,
+              JSON.stringify(m.attributes),
+              m.status,
+              m.zone_id,
+              req.user.id
+            );
+
+            valueClauses.push(
+              `($${modP}, (CASE WHEN $${lngP}::float IS NOT NULL AND $${latP}::float IS NOT NULL THEN ST_SetSRID(ST_MakePoint($${lngP}, $${latP}), 4326) ELSE NULL END), $${latP}, $${lngP}, $${capP}, $${gpP}, $${ownP}, $${phP}, $${attP}, $${staP}, $${zonP}, $${usrP}, now())`
+            );
           }
 
-          // Build conditional location SQL
-          const hasGps   = mapped.latitude != null && mapped.longitude != null;
-          const locSql   = hasGps ? 'ST_SetSRID(ST_MakePoint($2, $3), 4326)' : 'NULL';
+          const insertSql = `
+            INSERT INTO records (
+              module, location, latitude, longitude,
+              capture_method, ghana_post_address, owner_name, owner_phone,
+              attributes, status, zone_id, created_by, capture_time
+            )
+            VALUES ${valueClauses.join(',\n')}
+          `;
 
-          await query(
-            `INSERT INTO records (
-               module, location, latitude, longitude,
-               capture_method, ghana_post_address, owner_name, owner_phone,
-               attributes, status, zone_id, created_by, capture_time
-             )
-             VALUES (
-               $1, ${locSql}, $3, $2,
-               $4, $5, $6, $7,
-               $8, $9, $10, $11, now()
-             )`,
-            [
-              mapped.module,                            // $1
-              hasGps ? mapped.longitude : null,         // $2
-              hasGps ? mapped.latitude  : null,         // $3
-              mapped.capture_method,                    // $4
-              mapped.ghana_post_address,                // $5
-              mapped.owner_name,                        // $6
-              mapped.owner_phone,                       // $7
-              JSON.stringify(mapped.attributes),        // $8
-              mapped.status,                            // $9
-              mapped.zone_id,                           // $10
-              req.user.id,                              // $11
-            ]
-          );
-
-          imported++;
-        } catch (rowErr) {
-          skipped++;
-          errors.push({ row: rowNum, reason: rowErr.message });
+          await query(insertSql, params);
+          imported += validMapped.length;
+        } catch (batchErr) {
+          // If multi-row fails, fall back to individual inserts for this batch
+          for (const item of validMapped) {
+            try {
+              const m = item.mapped;
+              const hasGps = m.latitude != null && m.longitude != null;
+              const locSql = hasGps ? 'ST_SetSRID(ST_MakePoint($2, $3), 4326)' : 'NULL';
+              await query(
+                `INSERT INTO records (
+                   module, location, latitude, longitude,
+                   capture_method, ghana_post_address, owner_name, owner_phone,
+                   attributes, status, zone_id, created_by, capture_time
+                 )
+                 VALUES (
+                   $1, ${locSql}, $3, $2,
+                   $4, $5, $6, $7,
+                   $8, $9, $10, $11, now()
+                 )`,
+                [
+                  m.module,
+                  hasGps ? m.longitude : null,
+                  hasGps ? m.latitude : null,
+                  m.capture_method,
+                  m.ghana_post_address,
+                  m.owner_name,
+                  m.owner_phone,
+                  JSON.stringify(m.attributes),
+                  m.status,
+                  m.zone_id,
+                  req.user.id,
+                ]
+              );
+              imported++;
+            } catch (singleErr) {
+              skipped++;
+              errors.push({ row: item.rowNum, reason: singleErr.message });
+            }
+          }
         }
       }
 
