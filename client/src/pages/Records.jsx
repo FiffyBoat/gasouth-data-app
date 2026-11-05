@@ -9,7 +9,9 @@ export default function Records() {
   const { user, hasRole } = useAuth();
   const [records, setRecords] = useState([]);
   const [zones, setZones] = useState([]);
-  const [pagination, setPagination] = useState({ total: 0, pages: 1 });
+  const [pagination, setPagination] = useState({ total: 0, pages: 1, limit: 50 });
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
   const [loading, setLoading] = useState(true);
 
   // ── Import modal state ──────────────────────────────────────────────────
@@ -40,7 +42,7 @@ export default function Records() {
     fetchZones();
   }, []);
 
-  const fetchRecords = async () => {
+  const fetchRecords = async (targetPage = page) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -56,9 +58,12 @@ export default function Records() {
       if (filters.scope) params.append('scope', filters.scope);
       if (filters.search) params.append('search', filters.search);
 
+      params.append('limit', String(limit));
+      params.append('offset', String((targetPage - 1) * limit));
+
       const res = await api.get(`/api/records?${params.toString()}`);
       setRecords(res.data?.records || []);
-      setPagination(res.data?.pagination || { total: 0, pages: 1 });
+      setPagination(res.data?.pagination || { total: 0, pages: 1, limit: 50 });
     } catch (err) {
       console.error('Error fetching records:', err);
     } finally {
@@ -66,9 +71,23 @@ export default function Records() {
     }
   };
 
+  // Reset to page 1 whenever filters change
   useEffect(() => {
-    fetchRecords();
-  }, [filters]);
+    setPage(1);
+    fetchRecords(1);
+  }, [filters, limit]);
+
+  // Fetch when page changes
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    fetchRecords(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleLimitChange = (newLimit) => {
+    setLimit(newLimit);
+    setPage(1);
+  };
 
   const handleDeleteRecord = async (id) => {
     try {
@@ -349,12 +368,17 @@ export default function Records() {
         </div>
       </div>
 
-      {/* Records List / Table */}
+      {/* Records List / Table with Pagination */}
       <RecordList
         records={records}
         loading={loading}
         onDeleteRecord={handleDeleteRecord}
         showPendingGpsBadge={filters.pending_gps}
+        pagination={pagination}
+        page={page}
+        limit={limit}
+        onPageChange={handlePageChange}
+        onLimitChange={handleLimitChange}
       />
     </div>
   );

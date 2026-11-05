@@ -6,7 +6,10 @@ import {
   ShoppingBag,
   MapPin,
   Calendar,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Camera,
   Edit2,
   Trash2,
@@ -26,7 +29,17 @@ const MODULE_ICONS = {
   market_stall: ShoppingBag,
 };
 
-export default function RecordList({ records = [], loading, onDeleteRecord, showPendingGpsBadge = false }) {
+export default function RecordList({
+  records = [],
+  loading,
+  onDeleteRecord,
+  showPendingGpsBadge = false,
+  pagination = { total: 0, pages: 1, limit: 50 },
+  page = 1,
+  limit = 50,
+  onPageChange,
+  onLimitChange,
+}) {
   const { user, hasRole } = useAuth();
 
   const handleExportApprovedCSV = async () => {
@@ -256,8 +269,17 @@ export default function RecordList({ records = [], loading, onDeleteRecord, show
     <div className="space-y-4">
       {/* Action Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-gray-200 shadow-sm text-xs">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-700">Displaying {records.length} records</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-gray-700">
+            {pagination?.total > 0
+              ? `Displaying ${(page - 1) * limit + 1}–${Math.min(page * limit, pagination.total)} of ${pagination.total.toLocaleString()} records`
+              : `Displaying ${records.length} records`}
+          </span>
+          {pagination?.pages > 1 && (
+            <span className="px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 border border-gray-200">
+              Page {page} of {pagination.pages}
+            </span>
+          )}
           {approvedCount > 0 && (
             <span className="px-2 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
               {approvedCount} Certified & Approved
@@ -531,6 +553,78 @@ export default function RecordList({ records = [], loading, onDeleteRecord, show
               );
             })}
           </div>
+
+          {/* ── Pagination Controls ────────────────────────────────────── */}
+          {pagination && pagination.pages > 1 && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-3.5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+              {/* Items Per Page Selector */}
+              <div className="flex items-center gap-2 text-gray-500">
+                <span>Per page:</span>
+                <select
+                  value={limit}
+                  onChange={(e) => onLimitChange && onLimitChange(parseInt(e.target.value, 10))}
+                  className="px-2.5 py-1 border border-gray-200 rounded-lg bg-gray-50 font-medium text-gray-700 focus:outline-none"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                  <option value={500}>500</option>
+                </select>
+                <span className="text-gray-400">
+                  (Showing {(page - 1) * limit + 1}–{Math.min(page * limit, pagination.total)} of {pagination.total.toLocaleString()})
+                </span>
+              </div>
+
+              {/* Page Buttons */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => onPageChange && onPageChange(1)}
+                  className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="First Page"
+                >
+                  <ChevronsLeft className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => onPageChange && onPageChange(page - 1)}
+                  className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium flex items-center gap-1 transition-colors"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                {/* Page Indicator */}
+                <span className="px-3 py-1 font-semibold text-gray-800 bg-gray-100 rounded-lg">
+                  {page} / {pagination.pages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={page >= pagination.pages}
+                  onClick={() => onPageChange && onPageChange(page + 1)}
+                  className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium flex items-center gap-1 transition-colors"
+                  title="Next Page"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= pagination.pages}
+                  onClick={() => onPageChange && onPageChange(pagination.pages)}
+                  className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  title="Last Page"
+                >
+                  <ChevronsRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
