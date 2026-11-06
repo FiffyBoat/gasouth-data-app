@@ -723,8 +723,11 @@ router.put(
         });
       }
 
-      if (req.user.role === 'collector' && existing.created_by !== req.user.id) {
-        return res.status(403).json({ error: 'You can only update your own records' });
+      // Collectors can update their own records OR imported drafts needing GPS/verification
+      const isOwner = existing.created_by === req.user.id;
+      const isImportedDraft = existing.capture_method === 'imported';
+      if (req.user.role === 'collector' && !isOwner && !isImportedDraft) {
+        return res.status(403).json({ error: 'You can only update your own records or imported drafts' });
       }
 
       const {
@@ -754,6 +757,10 @@ router.put(
           ? 'location = ST_SetSRID(ST_MakePoint($2, $3), 4326),'
           : '';
 
+        // If a collector is editing an imported draft, claim ownership for this collector
+        const shouldClaimRecord = req.user.role === 'collector' && isImportedDraft && !isOwner;
+        const createdBySetSql = shouldClaimRecord ? ', created_by = $15' : '';
+
         const updateSql = `
           UPDATE records
           SET
@@ -772,11 +779,12 @@ router.put(
             attributes = $12,
             zone_id = COALESCE($13, zone_id),
             updated_at = now()
+            ${createdBySetSql}
           WHERE id = $14
           RETURNING *;
         `;
 
-        const result = await client.query(updateSql, [
+        const queryParams = [
           recordModule,
           hasGps ? longitude : null,
           hasGps ? latitude : null,
@@ -791,7 +799,12 @@ router.put(
           JSON.stringify(attributes),
           detectedZoneId,
           id,
-        ]);
+        ];
+        if (shouldClaimRecord) {
+          queryParams.push(req.user.id);
+        }
+
+        const result = await client.query(updateSql, queryParams);
 
         // Get max version number
         const vRes = await client.query(
@@ -1012,13 +1025,19 @@ router.patch(
       req._auditOldValues = record;
 
       // Role-based permission enforcement for workflow:
-      // 1. Collector: can only submit their own draft or rejected records
+      // 1. Collector: can submit their own draft/rejected records OR claim & submit imported drafts
       if (req.user.role === 'collector') {
         if (targetStatus !== 'submitted' && targetStatus !== 'draft') {
           return res.status(403).json({ error: 'Collectors can only submit records for supervisor review' });
         }
-        if (record.created_by !== req.user.id) {
-          return res.status(403).json({ error: 'You can only update your own records' });
+        const isOwner = record.created_by === req.user.id;
+        const isImported = record.capture_method === 'imported';
+        if (!isOwner && !isImported) {
+          return res.status(403).json({ error: 'You can only update your own records or imported drafts' });
+        }
+        // If claiming an imported record, assign ownership to this collector
+        if (isImported && !isOwner) {
+          await query('UPDATE records SET created_by = $1 WHERE id = $2', [req.user.id, record.id]);
         }
         if (targetStatus === 'submitted') {
           const attrs = typeof record.attributes === 'string' ? JSON.parse(record.attributes || '{}') : (record.attributes || {});

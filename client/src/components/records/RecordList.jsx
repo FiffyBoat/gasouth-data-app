@@ -349,7 +349,7 @@ export default function RecordList({
                   const Icon = MODULE_ICONS[r.module] || Building2;
                   const canEdit =
                     (r.status === 'draft' || r.status === 'rejected') &&
-                    (user?.id === r.created_by || hasRole('admin'));
+                    (user?.id === r.created_by || r.capture_method === 'imported' || hasRole('admin') || hasRole('supervisor'));
                   const canDelete =
                     (r.status === 'draft' || r.status === 'rejected') &&
                     (user?.id === r.created_by || hasRole('admin'));
@@ -455,7 +455,7 @@ export default function RecordList({
               const Icon = MODULE_ICONS[r.module] || Building2;
               const canEdit =
                 (r.status === 'draft' || r.status === 'rejected') &&
-                (user?.id === r.created_by || hasRole('admin'));
+                (user?.id === r.created_by || r.capture_method === 'imported' || hasRole('admin') || hasRole('supervisor'));
               const canDelete =
                 (r.status === 'draft' || r.status === 'rejected') &&
                 (user?.id === r.created_by || hasRole('admin'));

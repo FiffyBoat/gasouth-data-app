@@ -347,6 +347,51 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
         />
       )}
 
+      {/* Municipal Ledger Cross-Reference Card (for imported register records) */}
+      {initialRecord?.attributes?.bill_number && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-4 shadow-sm space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 bg-amber-200 text-amber-900 rounded-lg font-mono font-bold text-xs">
+                {initialRecord.attributes.bill_number}
+              </span>
+              <span className="text-xs font-semibold text-amber-800">GSMA Municipal Billing Register</span>
+            </div>
+            {initialRecord.attributes.client_id && (
+              <span className="text-xs text-amber-700 font-mono">
+                Client ID: <strong>{initialRecord.attributes.client_id}</strong>
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-amber-200/60 text-xs">
+            <div>
+              <span className="text-amber-700/80 block text-[11px]">Total Payable</span>
+              <span className="font-bold text-gray-900 font-mono">
+                {initialRecord.attributes.total_amount_payable ? `GH¢ ${initialRecord.attributes.total_amount_payable}` : '—'}
+              </span>
+            </div>
+            <div>
+              <span className="text-amber-700/80 block text-[11px]">Amount Paid</span>
+              <span className="font-bold text-emerald-700 font-mono">
+                {initialRecord.attributes.amount_paid ? `GH¢ ${initialRecord.attributes.amount_paid}` : '—'}
+              </span>
+            </div>
+            <div>
+              <span className="text-amber-700/80 block text-[11px]">Outstanding</span>
+              <span className="font-bold text-rose-700 font-mono">
+                {initialRecord.attributes.outstanding_amount ? `GH¢ ${initialRecord.attributes.outstanding_amount}` : (initialRecord.attributes.arrears ? `GH¢ ${initialRecord.attributes.arrears}` : '—')}
+              </span>
+            </div>
+            <div>
+              <span className="text-amber-700/80 block text-[11px]">Revenue Officer</span>
+              <span className="font-medium text-gray-800">
+                {initialRecord.attributes.revenue_officer || '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Common Section: Ratepayer & Geographic Identification */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
         <h3 className="font-semibold text-gray-900 text-sm border-b border-gray-100 pb-2 flex items-center gap-2">

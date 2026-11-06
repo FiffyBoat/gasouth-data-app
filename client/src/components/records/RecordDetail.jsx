@@ -35,8 +35,11 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
   const isOwner = user?.id === record.created_by;
   const isDraftOrRejected = record.status === 'draft' || record.status === 'rejected';
 
-  // CRUD Permissions
-  const canEdit = (isDraftOrRejected && isOwner) || hasRole('admin');
+  // CRUD Permissions — Collectors can edit their own drafts OR imported unverified records
+  const canEdit =
+    (isDraftOrRejected && (isOwner || record.capture_method === 'imported')) ||
+    hasRole('admin') ||
+    hasRole('supervisor');
   const canDelete = (isDraftOrRejected && isOwner) || hasRole('admin');
 
   // Multi-tier Workflow Permissions
@@ -77,14 +80,26 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
 
         {/* Action Buttons (CRUD & Workflow) */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Complete GPS Capture — shown prominently when no GPS */}
+          {canEdit && !record.latitude && (
+            <Link
+              to={`/capture?edit=${record.id}`}
+              className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+              title="Capture live GPS and complete this imported record"
+            >
+              <MapPin className="w-3.5 h-3.5 text-white" />
+              Capture GPS & Complete
+            </Link>
+          )}
+
           {/* UPDATE (Edit) */}
-          {canEdit && (
+          {canEdit && record.latitude && (
             <Link
               to={`/capture?edit=${record.id}`}
               className="px-3.5 py-2 border border-gray-300 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 transition-colors"
             >
               <Edit2 className="w-3.5 h-3.5 text-primary-600" />
-              Edit
+              Edit Record
             </Link>
           )}
 
@@ -196,6 +211,51 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
               </div>
             </div>
           </div>
+
+          {/* Municipal Billing Ledger Card (for imported register records) */}
+          {record.attributes?.bill_number && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-5 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/60 pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-1 bg-amber-200 text-amber-900 rounded-lg font-mono font-bold text-xs">
+                    {record.attributes.bill_number}
+                  </span>
+                  <span className="text-xs font-semibold text-amber-800">GSMA Municipal Billing Register</span>
+                </div>
+                {record.attributes.client_id && (
+                  <span className="text-xs text-amber-700 font-mono">
+                    Client ID: <strong>{record.attributes.client_id}</strong>
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                <div>
+                  <span className="text-amber-700/80 block text-[11px]">Total Payable</span>
+                  <span className="font-bold text-gray-900 font-mono text-sm">
+                    {record.attributes.total_amount_payable ? `GH¢ ${record.attributes.total_amount_payable}` : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-amber-700/80 block text-[11px]">Amount Paid</span>
+                  <span className="font-bold text-emerald-700 font-mono text-sm">
+                    {record.attributes.amount_paid ? `GH¢ ${record.attributes.amount_paid}` : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-amber-700/80 block text-[11px]">Outstanding Arrears</span>
+                  <span className="font-bold text-rose-700 font-mono text-sm">
+                    {record.attributes.outstanding_amount ? `GH¢ ${record.attributes.outstanding_amount}` : (record.attributes.arrears ? `GH¢ ${record.attributes.arrears}` : '—')}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-amber-700/80 block text-[11px]">Revenue Officer</span>
+                  <span className="font-medium text-gray-800 text-xs">
+                    {record.attributes.revenue_officer || '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Ratepayer Details */}
           <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
