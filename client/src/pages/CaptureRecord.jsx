@@ -34,11 +34,11 @@ export default function CaptureRecord() {
   const handleSubmit = async (formData, onSuccess) => {
     setSubmitting(true);
     try {
-      // 1. If currently offline, save directly to local IndexedDB outbox
-      if (!navigator.onLine && !editId) {
-        await saveOfflineRecord(formData);
+      // 1. If currently offline, save directly to local IndexedDB outbox (supports new captures & edits)
+      if (!navigator.onLine) {
+        await saveOfflineRecord({ ...formData, editId: editId || null });
         if (onSuccess) onSuccess();
-        alert('Offline Notice: Record and watermarked photos have been saved securely to your local Outbox. They will automatically upload when network is restored!');
+        alert('Offline Notice: Record and watermarked photos have been saved securely to your local Outbox. They will automatically sync when network is restored!');
         navigate('/records');
         return;
       }
@@ -74,9 +74,9 @@ export default function CaptureRecord() {
     } catch (err) {
       console.error('Error saving record:', err);
       // Fallback: If network connection failed or server is unreachable, save to offline outbox!
-      if ((!navigator.onLine || !err.response) && !editId) {
+      if (!navigator.onLine || !err.response) {
         try {
-          await saveOfflineRecord(formData);
+          await saveOfflineRecord({ ...formData, editId: editId || null });
           if (onSuccess) onSuccess();
           alert('Network Interruption: Record has been saved safely to your Offline Outbox. It will sync automatically as soon as mobile connectivity returns!');
           navigate('/records');

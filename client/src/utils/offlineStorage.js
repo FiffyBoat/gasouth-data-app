@@ -119,9 +119,16 @@ export async function syncAllOfflineRecords(api, onProgress) {
     }
 
     try {
-      // 1. POST record to backend
-      const res = await api.post('/api/records', recordPayload);
-      const serverRecordId = res.data?.record?.id;
+      // 1. If editId is present, PUT to update; else POST to create
+      let serverRecordId = recordPayload.editId;
+      delete recordPayload.editId;
+
+      if (serverRecordId) {
+        await api.put(`/api/records/${serverRecordId}`, recordPayload);
+      } else {
+        const res = await api.post('/api/records', recordPayload);
+        serverRecordId = res.data?.record?.id;
+      }
 
       // 2. Upload photos if present
       const uploadablePhotos = photos.filter((p) => p.file);
