@@ -200,6 +200,24 @@ app.post('/api/health/deduplicate', async (req, res) => {
   }
 });
 
+// Endpoint to completely reset/wipe all records & photos (preserves users and zones)
+app.post('/api/health/reset-records', async (req, res) => {
+  try {
+    await query(`DELETE FROM photos`);
+    await query(`DELETE FROM record_versions`);
+    await query(`DELETE FROM audit_log WHERE entity_type = 'record'`);
+    const delResult = await query(`DELETE FROM records`);
+    res.json({
+      success: true,
+      message: `Records reset complete. Removed ${delResult.rowCount} records. Users and zones preserved.`,
+      records_removed: delResult.rowCount,
+    });
+  } catch (err) {
+    console.error('Reset records error:', err);
+    res.status(500).json({ error: 'Failed to reset records' });
+  }
+});
+
 // Mount API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/records', recordsRoutes);
