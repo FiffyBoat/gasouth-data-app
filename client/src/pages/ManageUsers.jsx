@@ -17,6 +17,8 @@ import {
   UserX,
   KeyRound,
   Building,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -39,6 +41,8 @@ export default function ManageUsers() {
   const [deletingUser, setDeletingUser] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   // Form state for Create
   const [createForm, setCreateForm] = useState({
@@ -111,8 +115,18 @@ export default function ManageUsers() {
     setSubmitting(true);
     setActionError('');
     try {
-      await api.post('/api/users', createForm);
+      const payload = {
+        username: createForm.username?.trim().toLowerCase(),
+        full_name: createForm.full_name?.trim(),
+        email: createForm.email?.trim() || null,
+        phone: createForm.phone?.trim() || null,
+        role: createForm.role,
+        assigned_zone_id: createForm.assigned_zone_id || null,
+        password: createForm.password,
+      };
+      await api.post('/api/users', payload);
       setShowCreateModal(false);
+      setShowCreatePassword(false);
       setCreateForm({
         username: '',
         full_name: '',
@@ -134,6 +148,7 @@ export default function ManageUsers() {
   // Open Edit Modal
   const openEditModal = (targetUser) => {
     setActionError('');
+    setShowEditPassword(false);
     setEditingUser(targetUser);
     setEditForm({
       full_name: targetUser.full_name || '',
@@ -153,9 +168,9 @@ export default function ManageUsers() {
     setActionError('');
     try {
       const payload = {
-        full_name: editForm.full_name,
-        email: editForm.email,
-        phone: editForm.phone,
+        full_name: editForm.full_name?.trim(),
+        email: editForm.email?.trim() || null,
+        phone: editForm.phone?.trim() || null,
         role: editForm.role,
         assigned_zone_id: editForm.assigned_zone_id || null,
       };
@@ -165,6 +180,7 @@ export default function ManageUsers() {
 
       await api.put(`/api/users/${editingUser.id}`, payload);
       setEditingUser(null);
+      setShowEditPassword(false);
       await fetchData();
     } catch (err) {
       console.error('Update user error:', err);
@@ -540,11 +556,12 @@ export default function ManageUsers() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. kowusu"
+                  placeholder="e.g. kowusu or kofi_mensah"
                   value={createForm.username}
-                  onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+                  onChange={(e) => setCreateForm({ ...createForm, username: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                 />
+                <span className="text-[10px] text-gray-400 mt-0.5 block">Lowercase letters, numbers, and underscores only</span>
               </div>
 
               <div>
@@ -561,7 +578,7 @@ export default function ManageUsers() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-1">Phone</label>
+                  <label className="block text-gray-700 font-semibold mb-1">Phone <span className="text-gray-400 font-normal">(Optional)</span></label>
                   <input
                     type="tel"
                     placeholder="0244123456"
@@ -571,7 +588,7 @@ export default function ManageUsers() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-1">Email</label>
+                  <label className="block text-gray-700 font-semibold mb-1">Email <span className="text-gray-400 font-normal">(Optional)</span></label>
                   <input
                     type="email"
                     placeholder="officer@accra.gov"
@@ -615,14 +632,24 @@ export default function ManageUsers() {
 
               <div>
                 <label className="block text-gray-700 font-semibold mb-1">Initial Password *</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Min 6 characters"
-                  value={createForm.password}
-                  onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                />
+                <div className="relative">
+                  <input
+                    type={showCreatePassword ? 'text' : 'password'}
+                    required
+                    placeholder="Min 6 characters"
+                    value={createForm.password}
+                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                    className="w-full pl-3 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    title={showCreatePassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
@@ -748,12 +775,20 @@ export default function ManageUsers() {
                 <div className="relative">
                   <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
                   <input
-                    type="password"
+                    type={showEditPassword ? 'text' : 'password'}
                     placeholder="New password (min 6 characters)"
                     value={editForm.password}
                     onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                    className="w-full pl-9 pr-10 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    title={showEditPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
 

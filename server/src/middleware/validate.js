@@ -178,11 +178,11 @@ export function validateRecordOnSubmit(req, res, next) {
  */
 export const validateUser = [
   body('username')
-    .isString()
+    .trim()
     .isLength({ min: 3, max: 100 })
     .withMessage('Username must be between 3 and 100 characters')
     .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('Username can only contain letters, numbers, and underscores'),
+    .withMessage('Username can only contain letters, numbers, and underscores (no spaces)'),
 
   body('password')
     .isString()
@@ -194,23 +194,25 @@ export const validateUser = [
     .withMessage('Role must be one of: collector, supervisor, budget_director, admin'),
 
   body('full_name')
-    .isString()
+    .trim()
     .isLength({ min: 1, max: 200 })
     .withMessage('Full name is required and must not exceed 200 characters'),
 
   body('email')
-    .optional({ values: 'null' })
+    .optional({ values: 'falsy' })
+    .trim()
     .isEmail()
     .withMessage('Email must be a valid email address'),
 
   body('phone')
-    .optional({ values: 'null' })
-    .isString()
+    .optional({ values: 'falsy' })
+    .trim()
     .isLength({ max: 20 })
     .withMessage('Phone must not exceed 20 characters'),
 
   body('assigned_zone_id')
-    .optional({ values: 'null' })
+    .optional({ values: 'falsy' })
+    .trim()
     .isUUID()
     .withMessage('Assigned zone ID must be a valid UUID'),
 

@@ -85,10 +85,23 @@ router.post(
         assigned_zone_id,
       } = req.body;
 
+      const cleanUsername = String(username || '').trim().toLowerCase();
+      const cleanEmail = email && String(email).trim() ? String(email).trim().toLowerCase() : null;
+      const cleanPhone = phone && String(phone).trim() ? String(phone).trim() : null;
+      const cleanZone = assigned_zone_id && String(assigned_zone_id).trim() ? String(assigned_zone_id).trim() : null;
+
       // Check unique username
-      const checkRes = await query('SELECT id FROM users WHERE username = $1', [username]);
+      const checkRes = await query('SELECT id FROM users WHERE username = $1', [cleanUsername]);
       if (checkRes.rows.length > 0) {
         return res.status(400).json({ error: 'Username is already taken' });
+      }
+
+      // Check unique email if email is provided
+      if (cleanEmail) {
+        const checkEmail = await query('SELECT id FROM users WHERE email = $1', [cleanEmail]);
+        if (checkEmail.rows.length > 0) {
+          return res.status(400).json({ error: 'Email address is already in use' });
+        }
       }
 
       const passwordHash = await bcrypt.hash(password || 'zebra123', 12);
@@ -102,13 +115,13 @@ router.post(
       `;
 
       const result = await query(insertSql, [
-        username,
-        email || null,
+        cleanUsername,
+        cleanEmail,
         passwordHash,
         role,
-        full_name,
-        phone || null,
-        assigned_zone_id || null,
+        full_name?.trim() || cleanUsername,
+        cleanPhone,
+        cleanZone,
       ]);
 
       res.status(201).json({ user: result.rows[0] });
@@ -139,8 +152,20 @@ router.put(
       }
       req._auditOldValues = existingRes.rows[0];
 
+      const cleanEmail = email && String(email).trim() ? String(email).trim().toLowerCase() : null;
+      const cleanPhone = phone && String(phone).trim() ? String(phone).trim() : null;
+      const cleanZone = assigned_zone_id && String(assigned_zone_id).trim() ? String(assigned_zone_id).trim() : null;
+
+      // Check unique email if changing to an existing one
+      if (cleanEmail && cleanEmail !== existingRes.rows[0].email) {
+        const checkEmail = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [cleanEmail, id]);
+        if (checkEmail.rows.length > 0) {
+          return res.status(400).json({ error: 'Email address is already in use by another user' });
+        }
+      }
+
       let passwordUpdateSql = '';
-      const params = [email || null, full_name, phone || null, role, assigned_zone_id || null, id];
+      const params = [cleanEmail, full_name?.trim() || existingRes.rows[0].full_name, cleanPhone, role, cleanZone, id];
 
       if (password && password.trim().length >= 6) {
         const hash = await bcrypt.hash(password, 12);
