@@ -83,6 +83,9 @@ export default function Login() {
               <input
                 type="text"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck="false"
                 placeholder="e.g. admin or collector1"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}

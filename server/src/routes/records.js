@@ -191,11 +191,6 @@ router.get('/', authenticate, async (req, res) => {
       params.push(zone_id);
     }
 
-    if (created_by) {
-      conditions.push(`r.created_by = $${paramIndex++}`);
-      params.push(created_by);
-    }
-
     if (start_date) {
       conditions.push(`r.created_at >= $${paramIndex++}`);
       params.push(start_date);
@@ -1109,13 +1104,14 @@ router.patch(
       try {
         await client.query('BEGIN');
 
+        const isReviewAction = ['reviewed', 'approved', 'rejected', 'flagged'].includes(targetStatus);
         const updateSql = `
           UPDATE records
           SET
             status = $1,
-            reviewed_by = $2,
-            review_comment = $3,
-            review_time = now(),
+            reviewed_by = ${isReviewAction ? '$2' : 'NULL'},
+            review_comment = ${isReviewAction ? '$3' : 'NULL'},
+            review_time = ${isReviewAction ? 'now()' : 'NULL'},
             updated_at = now()
           WHERE id = $4
           RETURNING *;

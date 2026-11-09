@@ -24,14 +24,15 @@ router.post(
   async (req, res) => {
     try {
       const { username, password } = req.body;
+      const cleanIdentifier = String(username || '').trim();
 
       const result = await query(
         `SELECT u.id, u.username, u.email, u.password_hash, u.role, u.full_name,
                 u.phone, u.assigned_zone_id, u.is_active, z.name as zone_name
          FROM users u
          LEFT JOIN zones z ON u.assigned_zone_id = z.id
-         WHERE u.username = $1`,
-        [username]
+         WHERE LOWER(u.username) = LOWER($1) OR (u.email IS NOT NULL AND LOWER(u.email) = LOWER($1))`,
+        [cleanIdentifier]
       );
 
       if (result.rows.length === 0) {
