@@ -4,7 +4,7 @@
  * Dominant Crimson (#991B1B) identity.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -17,8 +17,10 @@ import {
   LogOut,
   X,
   ShieldCheck,
+  KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import ChangePasswordModal from '../auth/ChangePasswordModal';
 
 /** Navigation items with role restrictions */
 const NAV_ITEMS = [
@@ -37,6 +39,7 @@ const NAV_ITEMS = [
  */
 export default function Sidebar({ open, onClose }) {
   const { user, logout, hasRole } = useAuth();
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.roles || item.roles.some((r) => hasRole(r))
@@ -141,15 +144,33 @@ export default function Sidebar({ open, onClose }) {
               </p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 hover:bg-white/20 px-3 py-2 text-xs font-bold text-white transition-all active:scale-95 border border-white/10"
-          >
-            <LogOut size={15} />
-            <span>Sign Out</span>
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setShowChangePassword(true)}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 px-2 py-2 text-xs font-bold text-white transition-all active:scale-95 border border-white/10"
+              title="Change your account password"
+            >
+              <KeyRound size={13} className="text-amber-300" />
+              <span>Password</span>
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-white/10 hover:bg-rose-900/60 px-2 py-2 text-xs font-bold text-red-100 hover:text-white transition-all active:scale-95 border border-white/10"
+            >
+              <LogOut size={13} />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </aside>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
     </>
   );
 }
