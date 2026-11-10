@@ -141,7 +141,7 @@ export default function Login() {
           </button>
         </form>
 
-        {/* Demo Credentials Helper */}
+        {/* Demo Credentials Helper - Commented out for production
         <div className="pt-4 border-t border-gray-100 text-xs space-y-2">
           <span className="text-gray-500 font-bold block text-[11px] uppercase tracking-wider">
             Quick Sign-In Accounts:
@@ -181,6 +181,7 @@ export default function Login() {
             </button>
           </div>
         </div>
+        */}
       </div>
 
       {/* Municipal Footer Tag */}
