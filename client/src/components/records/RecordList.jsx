@@ -347,10 +347,15 @@ export default function RecordList({
               <tbody className="divide-y divide-gray-100 bg-white">
                 {records.map((r) => {
                   const Icon = MODULE_ICONS[r.module] || Building2;
+                  // Only collectors and admins may edit/delete field records;
+                  // supervisors and budget directors are strictly read-only here.
+                  const isFieldUser = hasRole('collector') || hasRole('admin');
                   const canEdit =
+                    isFieldUser &&
                     (r.status === 'draft' || r.status === 'rejected') &&
-                    (user?.id === r.created_by || r.capture_method === 'imported' || hasRole('admin') || hasRole('supervisor'));
+                    (user?.id === r.created_by || r.capture_method === 'imported' || hasRole('admin'));
                   const canDelete =
+                    isFieldUser &&
                     (r.status === 'draft' || r.status === 'rejected') &&
                     (user?.id === r.created_by || hasRole('admin'));
 
@@ -453,10 +458,15 @@ export default function RecordList({
           <div className="grid grid-cols-1 gap-3 md:hidden">
             {records.map((r) => {
               const Icon = MODULE_ICONS[r.module] || Building2;
+              // Only collectors and admins may edit/delete field records;
+              // supervisors and budget directors are strictly read-only here.
+              const isFieldUser = hasRole('collector') || hasRole('admin');
               const canEdit =
+                isFieldUser &&
                 (r.status === 'draft' || r.status === 'rejected') &&
-                (user?.id === r.created_by || r.capture_method === 'imported' || hasRole('admin') || hasRole('supervisor'));
+                (user?.id === r.created_by || r.capture_method === 'imported' || hasRole('admin'));
               const canDelete =
+                isFieldUser &&
                 (r.status === 'draft' || r.status === 'rejected') &&
                 (user?.id === r.created_by || hasRole('admin'));
 

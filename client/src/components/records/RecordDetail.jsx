@@ -35,12 +35,15 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
   const isOwner = user?.id === record.created_by;
   const isDraftOrRejected = record.status === 'draft' || record.status === 'rejected';
 
-  // CRUD Permissions — Collectors can edit their own drafts OR imported unverified records
+  // CRUD Permissions — only collectors and admins may edit field records.
+  // Supervisors and budget directors are strictly read-only on this page;
+  // they perform their actions via the Review & Approvals workflow instead.
+  const isFieldUser = hasRole('collector') || hasRole('admin');
   const canEdit =
-    (isDraftOrRejected && (isOwner || record.capture_method === 'imported')) ||
-    hasRole('admin') ||
-    hasRole('supervisor');
-  const canDelete = (isDraftOrRejected && isOwner) || hasRole('admin');
+    isFieldUser &&
+    isDraftOrRejected &&
+    (isOwner || record.capture_method === 'imported' || hasRole('admin'));
+  const canDelete = isFieldUser && isDraftOrRejected && (isOwner || hasRole('admin'));
 
   // Multi-tier Workflow Permissions
   const isSupervisor = hasRole('supervisor') || hasRole('admin');

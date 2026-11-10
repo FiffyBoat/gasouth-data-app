@@ -718,6 +718,18 @@ router.put(
         });
       }
 
+      // ── Role Guard: only collectors and admins may update field records ────────
+      // Supervisors and Budget Directors are read-only on field records; they
+      // perform their workflow actions (review / approve / reject) via dedicated
+      // status-change endpoints, not through a full record PUT.
+      if (!['collector', 'admin'].includes(req.user.role)) {
+        return res.status(403).json({
+          error:
+            'Field record editing is restricted to Field Officers. Use the Review & Approvals section to review submitted records.',
+        });
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       // Collectors can update their own records OR imported drafts needing GPS/verification
       const isOwner = existing.created_by === req.user.id;
       const isImportedDraft = existing.capture_method === 'imported';

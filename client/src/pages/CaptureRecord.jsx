@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import RecordForm from '../components/records/RecordForm';
 import api from '../utils/api';
 import { saveOfflineRecord } from '../utils/offlineStorage';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CaptureRecord() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
+  const { hasRole } = useAuth();
 
   const [initialRecord, setInitialRecord] = useState(null);
   const [loading, setLoading] = useState(!!editId);
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Role Guard ──────────────────────────────────────────────────────────────
+  // Only Field Officers (collectors) and Admins may access data capture/edit.
+  // Supervisors and Budget Directors use the Review & Approvals workflow instead.
+  // NOTE: hooks must all be called before this early return (Rules of Hooks).
+  const isFieldUser = hasRole('collector') || hasRole('admin');
+  // ────────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (editId) {
@@ -90,6 +99,42 @@ export default function CaptureRecord() {
       setSubmitting(false);
     }
   };
+
+  // ── Role-restricted access screen ───────────────────────────────────────────
+  if (!isFieldUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-center px-4">
+        <div className="w-14 h-14 rounded-full bg-amber-100 flex items-center justify-center">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-7 h-7 text-amber-600"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h2 className="text-lg font-bold text-gray-800">Access Restricted</h2>
+        <p className="text-sm text-gray-500 max-w-sm">
+          Field data capture is restricted to Field Officers. Use the{' '}
+          <strong>Review &amp; Approvals</strong> section to review submitted records.
+        </p>
+        <Link
+          to="/records"
+          className="mt-2 px-5 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold rounded-xl transition-colors"
+        >
+          Return to Records
+        </Link>
+      </div>
+    );
+  }
+  // ────────────────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
