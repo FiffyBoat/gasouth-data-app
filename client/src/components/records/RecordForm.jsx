@@ -176,10 +176,11 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       }
     }
 
+    // Ghana Post address is completely optional. Only validate if user provided a value.
     if (ghanaPostAddress && ghanaPostAddress.trim()) {
       const cleanGP = ghanaPostAddress.trim().toUpperCase();
-      if (!/^GS-\d{4}-\d{4}$/.test(cleanGP) && !/^GS\d{8}$/.test(cleanGP)) {
-        errors.ghana_post_address = 'Ghana Post Address must be in GS-XXXX-XXXX format (e.g. GS-0124-5678)';
+      if (!/^[A-Z]{2}-\d{3,5}-\d{3,5}$/.test(cleanGP) && !/^[A-Z]{2}\d{6,10}$/.test(cleanGP)) {
+        errors.ghana_post_address = 'Invalid Ghana Post format. Use e.g. GS-0124-5678, or leave blank if unavailable.';
       }
     }
 
@@ -235,7 +236,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       altitude: geo.altitude,
       accuracy_m: geo.accuracy,
       capture_method: geo.captureMethod || (initialRecord?.capture_method || (geo.latitude ? 'device-gps' : null)),
-      ghana_post_address: ghanaPostAddress || null,
+      ghana_post_address: ghanaPostAddress?.trim() ? ghanaPostAddress.trim().toUpperCase() : null,
       owner_name: ownerName?.trim() || null,
       owner_phone: ownerPhone?.trim() || null,
       owner_id_type: null,
