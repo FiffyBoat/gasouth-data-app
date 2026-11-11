@@ -750,10 +750,17 @@ router.put(
         owner_id_type,
         owner_id_number,
         attributes = {},
+        status: requestedStatus,
       } = req.body;
 
       const hasGps = latitude != null && longitude != null;
       const detectedZoneId = hasGps ? await findZoneForPoint(latitude, longitude) : null;
+
+      // If user clicked "Submit Record for Review" and GPS is present, transition to submitted
+      const targetStatus =
+        requestedStatus === 'submitted' && hasGps && owner_name?.trim() && owner_phone?.trim()
+          ? 'submitted'
+          : existing.status;
 
       const client = await getClient();
       try {
@@ -764,9 +771,10 @@ router.put(
           ? 'location = ST_SetSRID(ST_MakePoint($2, $3), 4326),'
           : '';
 
-        // If a collector is editing an imported draft, claim ownership for this collector
-        const shouldClaimRecord = req.user.role === 'collector' && isImportedDraft && !isOwner;
-        const createdBySetSql = shouldClaimRecord ? ', created_by = $15' : '';
+        // If a collector or admin is editing an imported draft, claim ownership for them
+        const shouldClaimRecord =
+          (req.user.role === 'collector' || req.user.role === 'admin') && isImportedDraft && !isOwner;
+        const createdBySetSql = shouldClaimRecord ? ', created_by = $16' : '';
 
         const updateSql = `
           UPDATE records
@@ -785,9 +793,10 @@ router.put(
             owner_id_number = $11,
             attributes = $12,
             zone_id = COALESCE($13, zone_id),
+            status = $14,
             updated_at = now()
             ${createdBySetSql}
-          WHERE id = $14
+          WHERE id = $15
           RETURNING *;
         `;
 
@@ -805,6 +814,7 @@ router.put(
           owner_id_number || null,
           JSON.stringify(attributes),
           detectedZoneId,
+          targetStatus,
           id,
         ];
         if (shouldClaimRecord) {
@@ -1121,18 +1131,19 @@ router.patch(
           UPDATE records
           SET
             status = $1,
-            reviewed_by = ${isReviewAction ? '$2' : 'NULL'},
-            review_comment = ${isReviewAction ? '$3' : 'NULL'},
-            review_time = ${isReviewAction ? 'now()' : 'NULL'},
+            reviewed_by = $2,
+            review_comment = $3,
+            review_time = $4,
             updated_at = now()
-          WHERE id = $4
+          WHERE id = $5
           RETURNING *;
         `;
 
         const result = await client.query(updateSql, [
           targetStatus,
-          req.user.id,
-          comment || null,
+          isReviewAction ? req.user.id : null,
+          isReviewAction ? (comment || null) : null,
+          isReviewAction ? new Date() : null,
           id,
         ]);
 

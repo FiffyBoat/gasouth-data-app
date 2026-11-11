@@ -746,6 +746,7 @@ export async function executeFallbackQuery(sqlText, params = []) {
         record.owner_id_number = params[10];
         record.attributes = typeof params[11] === 'string' ? JSON.parse(params[11]) : params[11];
         record.zone_id = params[12];
+        if (params[13]) record.status = params[13];
       }
       record.updated_at = new Date().toISOString();
       return { rows: [record], rowCount: 1 };
