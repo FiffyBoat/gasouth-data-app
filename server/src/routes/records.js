@@ -259,7 +259,7 @@ router.get('/', authenticate, async (req, res) => {
 
 /**
  * GET /api/records/export/csv
- * Exports records in the exact 43-column ZebraRMS import template format:
+ * Exports records in the standard 43-column template format:
  * Firstname | Lastname | Email | Contact phonenumber | Position | Company | Vat | Phonenumber | Country | City | Zip | State | Address | Website | Billing street | Billing city | Billing state | Billing zip | Billing country | Shipping street | Shipping city | Shipping state | Shipping zip | Shipping country | Longitude | Latitude | Stripe id | Location | Landmark | Business Type | Business Category | Service(s) Provided | Valuation Number | Use Code | Zone | UPN | Property Address | Ghana Post Code | Street Name | Collection Area | Sub Collection Area | Rateable Value | Rate Impost
  */
 router.get('/export/csv', authenticate, async (req, res) => {
@@ -285,7 +285,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
       records = records.filter((r) => r.zone_id === zone_id);
     }
 
-    // Exact 43 ZebraRMS template headers in precise order
+    // Exact 43 template headers in precise order
     const headers = [
       'Firstname',
       'Lastname',
@@ -367,7 +367,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
       return [
         escapeCsv(firstname),                                      // 1. Firstname
         escapeCsv(lastname),                                       // 2. Lastname
-        escapeCsv(syntheticEmail),                                 // 3. Email (Synthetic Unique for ZebraRMS)
+        escapeCsv(syntheticEmail),                                 // 3. Email (Synthetic Unique)
         escapeCsv(phone),                                          // 4. Contact phonenumber
         '""',                                                      // 5. Position (empty)
         escapeCsv(company),                                        // 6. Company
@@ -414,7 +414,7 @@ router.get('/export/csv', authenticate, async (req, res) => {
     const csvContent = [headers.join(','), ...rows].join('\r\n');
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="zebrarms_export_${Date.now()}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="records_export_${Date.now()}.csv"`);
     res.send(csvContent);
   } catch (err) {
     console.error('CSV Export error:', err);

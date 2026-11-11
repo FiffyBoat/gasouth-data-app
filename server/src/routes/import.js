@@ -1,6 +1,6 @@
 /**
  * POST /api/records/import
- * Bulk-import ratepayer records from a ZebraRMS 43-column CSV or Excel file.
+ * Bulk-import ratepayer records from a CSV or Excel file.
  * Creates draft records (latitude/longitude = NULL) so collectors can visit
  * each property, capture GPS coordinates, and submit for review.
  *
@@ -132,7 +132,7 @@ function cleanPhoneNumber(raw) {
 }
 
 // ---------------------------------------------------------------------------
-// ZebraRMS (File 1) & GSMA Billing Ledger (File 2) → DCS record field mapping
+// Ratepayer & GSMA Billing Ledger → DCS record field mapping
 // ---------------------------------------------------------------------------
 function mapRow(row, zonesByName) {
   // Helper: find raw value by any matching header variant

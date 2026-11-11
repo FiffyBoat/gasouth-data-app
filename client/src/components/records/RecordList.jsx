@@ -44,13 +44,13 @@ export default function RecordList({
 
   const handleExportApprovedCSV = async () => {
     try {
-      // First attempt downloading ZebraRMS-formatted CSV export from backend
+      // First attempt downloading CSV export from backend
       const res = await api.get('/api/records/export/csv?status=approved', { responseType: 'blob' });
       const blob = new Blob([res.data], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `zebrarms_export_${Date.now()}.csv`;
+      a.download = `records_export_${Date.now()}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -64,7 +64,7 @@ export default function RecordList({
         return;
       }
 
-      // Exact 43 ZebraRMS template headers in order
+      // Exact 43 template headers in order
       const headers = [
         'Firstname',
         'Lastname',
@@ -129,7 +129,7 @@ export default function RecordList({
         const company = a.business_type || a.company || '';
         const zoneName = r.zone_name || '';
 
-        // Generate synthetic valid & unique email for ZebraRMS import (Format A: {phone}@gasouth.gov.gh)
+        // Generate synthetic valid & unique email for export (Format A: {phone}@gasouth.gov.gh)
         let cleanPhone = (phone || '').replace(/[^0-9]/g, '');
         let syntheticEmail = '';
         if (cleanPhone && cleanPhone.length >= 7) {
@@ -193,7 +193,7 @@ export default function RecordList({
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement('a');
       link.setAttribute('href', encodedUri);
-      link.setAttribute('download', `zebrarms_export_${Date.now()}.csv`);
+      link.setAttribute('download', `records_export_${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -302,10 +302,10 @@ export default function RecordList({
             type="button"
             onClick={handleExportApprovedCSV}
             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold flex items-center gap-1.5 shadow-sm transition-colors"
-            title="Download ZebraRMS compatible CSV import template"
+            title="Download CSV export with complete location attributes"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export for ZebraRMS (CSV) ({approvedCount})</span>
+            <span>Export CSV ({approvedCount})</span>
           </button>
         </div>
       </div>

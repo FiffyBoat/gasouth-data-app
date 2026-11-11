@@ -100,7 +100,7 @@ export default function Records() {
     }
   };
 
-  // ── Import ZebraRMS file ─────────────────────────────────────────────────
+  // ── Import Records file ─────────────────────────────────────────────────
   const handleImport = async () => {
     if (!importFile) return;
     setImportLoading(true);
@@ -159,7 +159,7 @@ export default function Records() {
               className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
             >
               <Upload className="w-4 h-4" />
-              <span>Import ZebraRMS</span>
+              <span>Import Records</span>
             </button>
           )}
 
@@ -181,14 +181,14 @@ export default function Records() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-gray-900">Import ZebraRMS Data</h3>
+              <h3 className="text-base font-bold text-gray-900">Import Ratepayer Data</h3>
               <button onClick={closeImport} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <p className="text-xs text-gray-600 leading-relaxed">
-              Upload your ZebraRMS CSV or Excel (.xlsx) export file. Records will be created as{' '}
+              Upload your CSV or Excel (.xlsx) file. Records will be created as{' '}
               <span className="font-semibold text-amber-700">drafts without GPS coordinates</span>.
               Collectors can then visit each property, capture GPS, add photos, and submit for review.
               New fresh captures still work alongside imported records.
