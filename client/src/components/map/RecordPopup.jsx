@@ -31,9 +31,9 @@ export default function RecordPopup({ record }) {
           <span>{formatCoordinates(record.latitude, record.longitude)}</span>
         </div>
 
-        {record.ghana_post_address && (
+        {(record.location_name || record.ghana_post_address) && (
           <p className="text-gray-500">
-            Digital Addr: <span className="font-mono text-gray-800">{record.ghana_post_address}</span>
+            Location: <span className="font-medium text-gray-800">{record.location_name || record.ghana_post_address}</span>
           </p>
         )}
 

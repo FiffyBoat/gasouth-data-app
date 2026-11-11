@@ -56,6 +56,7 @@ CREATE TABLE records (
     accuracy_m DOUBLE PRECISION,
     capture_method VARCHAR(20) NOT NULL CHECK (capture_method IN ('device-gps', 'averaged', 'manual-pin')),
     ghana_post_address VARCHAR(50),
+    location_name VARCHAR(150),
     owner_name VARCHAR(200),
     owner_phone VARCHAR(20),
     owner_id_type VARCHAR(50),

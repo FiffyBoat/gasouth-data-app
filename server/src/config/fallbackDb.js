@@ -702,6 +702,7 @@ export async function executeFallbackQuery(sqlText, params = []) {
       accuracy_m: params[4],
       capture_method: params[5],
       ghana_post_address: params[6],
+      location_name: params[6],
       owner_name: params[7],
       owner_phone: params[8],
       owner_id_type: params[9],
@@ -740,6 +741,7 @@ export async function executeFallbackQuery(sqlText, params = []) {
         record.accuracy_m = params[4];
         record.capture_method = params[5];
         record.ghana_post_address = params[6];
+        record.location_name = params[6];
         record.owner_name = params[7];
         record.owner_phone = params[8];
         record.owner_id_type = params[9];

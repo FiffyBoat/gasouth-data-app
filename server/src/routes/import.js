@@ -385,14 +385,14 @@ router.post(
             );
 
             valueClauses.push(
-              `($${modP}, (CASE WHEN $${lngP}::float IS NOT NULL AND $${latP}::float IS NOT NULL THEN ST_SetSRID(ST_MakePoint($${lngP}, $${latP}), 4326) ELSE NULL END), $${latP}, $${lngP}, $${capP}, $${gpP}, $${ownP}, $${phP}, $${attP}, $${staP}, $${zonP}, $${usrP}, now())`
+              `($${modP}, (CASE WHEN $${lngP}::float IS NOT NULL AND $${latP}::float IS NOT NULL THEN ST_SetSRID(ST_MakePoint($${lngP}, $${latP}), 4326) ELSE NULL END), $${latP}, $${lngP}, $${capP}, $${gpP}, $${gpP}, $${ownP}, $${phP}, $${attP}, $${staP}, $${zonP}, $${usrP}, now())`
             );
           }
 
           const insertSql = `
             INSERT INTO records (
               module, location, latitude, longitude,
-              capture_method, ghana_post_address, owner_name, owner_phone,
+              capture_method, ghana_post_address, location_name, owner_name, owner_phone,
               attributes, status, zone_id, created_by, capture_time
             )
             VALUES ${valueClauses.join(',\n')}
@@ -410,12 +410,12 @@ router.post(
               await query(
                 `INSERT INTO records (
                    module, location, latitude, longitude,
-                   capture_method, ghana_post_address, owner_name, owner_phone,
+                   capture_method, ghana_post_address, location_name, owner_name, owner_phone,
                    attributes, status, zone_id, created_by, capture_time
                  )
                  VALUES (
                    $1, ${locSql}, $3, $2,
-                   $4, $5, $6, $7,
+                   $4, $5, $5, $6, $7,
                    $8, $9, $10, $11, now()
                  )`,
                 [

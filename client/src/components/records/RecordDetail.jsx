@@ -178,9 +178,9 @@ export default function RecordDetail({ record, onStatusChange, onDeleteRecord, i
                 <p className="text-xl font-mono font-bold text-gray-900">
                   {formatCoordinates(record.latitude, record.longitude)}
                 </p>
-                {record.ghana_post_address && (
-                  <p className="text-xs font-mono text-gray-500 mt-1">
-                    Ghana Post: <span className="font-semibold text-gray-800">{record.ghana_post_address}</span>
+                {(record.location_name || record.ghana_post_address) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Location: <span className="font-semibold text-gray-800">{record.location_name || record.ghana_post_address}</span>
                   </p>
                 )}
               </div>

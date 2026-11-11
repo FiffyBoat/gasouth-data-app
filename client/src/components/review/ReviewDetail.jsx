@@ -143,11 +143,11 @@ export default function ReviewDetail({
 
       {/* Map Preview */}
       <div className="space-y-1.5">
-        <span className="text-xs font-semibold text-gray-700">GPS Digital Address</span>
+        <span className="text-xs font-semibold text-gray-700">Location &amp; Coordinates</span>
         <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 font-mono text-xs flex justify-between items-center">
           <span className="font-bold text-gray-800">{formatCoordinates(record.latitude, record.longitude)}</span>
-          <span className="text-gray-500">
-            {record.ghana_post_address ? `Ghana Post: ${record.ghana_post_address}` : formatAccuracy(record.accuracy_m)}
+          <span className="text-gray-600 font-sans font-medium">
+            {record.location_name || record.ghana_post_address ? `Location: ${record.location_name || record.ghana_post_address}` : formatAccuracy(record.accuracy_m)}
           </span>
         </div>
         <MapView

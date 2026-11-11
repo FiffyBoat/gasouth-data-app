@@ -303,7 +303,7 @@ export default function MapView({
             <div style="font-weight: 700; color: #7c3aed; font-size: 11px; text-transform: uppercase;">Stop #${idx + 1} ${timeStr ? `• ${timeStr}` : ''}</div>
             <div style="font-weight: 700; color: #111827; font-size: 13px;">${pt.owner_name || pt.module}</div>
             <div style="color: #4b5563; font-family: monospace; font-size: 11px;">${formatCoordinates(pt.latitude, pt.longitude)}</div>
-            ${pt.ghana_post_address ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px;">🇬🇭 ${pt.ghana_post_address}</div>` : ''}
+            ${(pt.location_name || pt.ghana_post_address) ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px;">📍 ${pt.location_name || pt.ghana_post_address}</div>` : ''}
           </div>
         `);
 
@@ -419,8 +419,8 @@ export default function MapView({
             ${formatCoordinates(record.latitude, record.longitude)}
           </div>
           ${
-            record.ghana_post_address
-              ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px; margin-top: 2px;">🇬🇭 ${record.ghana_post_address}</div>`
+            (record.location_name || record.ghana_post_address)
+              ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px; margin-top: 2px;">📍 ${record.location_name || record.ghana_post_address}</div>`
               : ''
           }
           <div style="margin-top: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; background: ${cfg.bg}; color: ${cfg.text}; font-weight: 700; font-size: 10px; border: 1px solid ${cfg.color}40;">

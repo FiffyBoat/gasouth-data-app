@@ -260,6 +260,19 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Ensure location_name column exists in records table (zero-downtime evolution)
+(async () => {
+  try {
+    await query(`
+      ALTER TABLE records ADD COLUMN IF NOT EXISTS location_name VARCHAR(150);
+      UPDATE records SET location_name = ghana_post_address WHERE location_name IS NULL AND ghana_post_address IS NOT NULL;
+    `);
+    console.log('[DB] location_name column verified and synchronized.');
+  } catch (err) {
+    console.warn('[DB] location_name migration notice:', err.message);
+  }
+})();
+
 app.listen(PORT, () => {
   console.log(`===============================================`);
   console.log(`Ga South DCS Server running on port ${PORT}`);

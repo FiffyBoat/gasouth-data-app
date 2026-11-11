@@ -69,7 +69,9 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
   const geo = useGeolocation();
 
   const [moduleType, setModuleType] = useState(initialRecord?.module || 'property');
-  const [ghanaPostAddress, setGhanaPostAddress] = useState(initialRecord?.ghana_post_address || '');
+  const [ghanaPostAddress, setGhanaPostAddress] = useState(
+    initialRecord?.location_name || initialRecord?.ghana_post_address || ''
+  );
 
   // Core Ratepayer & Contact Details
   const [ownerName, setOwnerName] = useState(initialRecord?.owner_name || '');
@@ -176,12 +178,9 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       }
     }
 
-    // Ghana Post address is completely optional. Only validate if user provided a value.
-    if (ghanaPostAddress && ghanaPostAddress.trim()) {
-      const cleanGP = ghanaPostAddress.trim().toUpperCase();
-      if (!/^[A-Z]{2}-\d{3,5}-\d{3,5}$/.test(cleanGP) && !/^[A-Z]{2}\d{6,10}$/.test(cleanGP)) {
-        errors.ghana_post_address = 'Invalid Ghana Post format. Use e.g. GS-0124-5678, or leave blank if unavailable.';
-      }
+    // Location is mandatory for supervisor submission
+    if (!ghanaPostAddress || !ghanaPostAddress.trim()) {
+      errors.location = 'Location (Town / Suburb / Area or Digital Address) is required before submitting';
     }
 
     if (moduleType === 'property') {
@@ -236,7 +235,9 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       altitude: geo.altitude,
       accuracy_m: geo.accuracy,
       capture_method: geo.captureMethod || (initialRecord?.capture_method || (geo.latitude ? 'device-gps' : null)),
-      ghana_post_address: ghanaPostAddress?.trim() ? ghanaPostAddress.trim().toUpperCase() : null,
+      location_name: ghanaPostAddress?.trim() || null,
+      location: ghanaPostAddress?.trim() || null,
+      ghana_post_address: ghanaPostAddress?.trim() || null,
       owner_name: ownerName?.trim() || null,
       owner_phone: ownerPhone?.trim() || null,
       owner_id_type: null,
@@ -265,8 +266,8 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
             {formErrors.gps && (
               <p className="mt-1 font-semibold text-red-800 underline">⚠️ {formErrors.gps}</p>
             )}
-            {formErrors.ghana_post_address && (
-              <p className="mt-1 font-semibold text-red-800 underline">⚠️ {formErrors.ghana_post_address}</p>
+            {formErrors.location && (
+              <p className="mt-1 font-semibold text-red-800 underline">⚠️ {formErrors.location}</p>
             )}
           </div>
         </div>

@@ -337,7 +337,7 @@ export default function RecordList({
                 <tr>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Ratepayer / Owner</th>
-                  <th className="px-4 py-3">GPS Digital Address</th>
+                  <th className="px-4 py-3">Location &amp; GPS</th>
                   <th className="px-4 py-3">Zone</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Captured</th>
@@ -375,10 +375,12 @@ export default function RecordList({
                         <div className="font-medium text-gray-900">{r.owner_name || '—'}</div>
                         {r.owner_phone && <div className="text-gray-400 text-[11px]">{r.owner_phone}</div>}
                       </td>
-                      <td className="px-4 py-3 font-mono text-gray-700">
-                        <div>{formatCoordinates(r.latitude, r.longitude)}</div>
-                        <div className="text-[11px] text-gray-400">
-                          {r.ghana_post_address || formatAccuracy(r.accuracy_m)}
+                      <td className="px-4 py-3 text-gray-700">
+                        <div className="font-semibold text-gray-900 text-xs">
+                          {r.location_name || r.ghana_post_address || '—'}
+                        </div>
+                        <div className="font-mono text-[11px] text-gray-400">
+                          {formatCoordinates(r.latitude, r.longitude)}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-600 whitespace-nowrap">

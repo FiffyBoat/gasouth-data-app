@@ -80,6 +80,7 @@ router.get('/collector-route', authenticate, async (req, res) => {
       `SELECT
          r.id, r.module, r.latitude, r.longitude, r.accuracy_m,
          r.owner_name, r.status, r.ghana_post_address,
+         COALESCE(r.location_name, r.ghana_post_address) AS location_name,
          r.capture_time, r.created_at,
          u.full_name AS collector_name,
          z.name AS zone_name,
@@ -202,7 +203,7 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     if (search) {
-      conditions.push(`(r.owner_name ILIKE $${paramIndex} OR r.ghana_post_address ILIKE $${paramIndex} OR r.owner_phone ILIKE $${paramIndex})`);
+      conditions.push(`(r.owner_name ILIKE $${paramIndex} OR r.ghana_post_address ILIKE $${paramIndex} OR r.location_name ILIKE $${paramIndex} OR r.owner_phone ILIKE $${paramIndex})`);
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -221,7 +222,9 @@ router.get('/', authenticate, async (req, res) => {
     const dataSql = `
       SELECT
         r.id, r.module, r.latitude, r.longitude, r.altitude, r.accuracy_m,
-        r.capture_method, r.ghana_post_address, r.owner_name, r.owner_phone,
+        r.capture_method, r.ghana_post_address,
+        COALESCE(r.location_name, r.ghana_post_address) as location_name,
+        r.owner_name, r.owner_phone,
         r.owner_id_type, r.owner_id_number, r.attributes, r.status,
         r.zone_id, z.name as zone_name,
         r.created_by, u.full_name as created_by_name,
@@ -513,7 +516,9 @@ router.get('/:id', authenticate, async (req, res) => {
     const recordResult = await query(
       `SELECT
          r.id, r.module, r.latitude, r.longitude, r.altitude, r.accuracy_m,
-         r.capture_method, r.ghana_post_address, r.owner_name, r.owner_phone,
+         r.capture_method, r.ghana_post_address,
+         COALESCE(r.location_name, r.ghana_post_address) as location_name,
+         r.owner_name, r.owner_phone,
          r.owner_id_type, r.owner_id_number, r.attributes, r.status,
          r.zone_id, z.name as zone_name,
          r.created_by, u.full_name as created_by_name,
@@ -589,6 +594,8 @@ router.post(
         accuracy_m,
         capture_method,
         ghana_post_address,
+        location_name: bodyLocName,
+        location: altLocName,
         owner_name,
         owner_phone,
         owner_id_type,
@@ -597,6 +604,13 @@ router.post(
         status = 'draft',
         device_info,
       } = req.body;
+
+      const locationName = (bodyLocName || altLocName || ghana_post_address || '').trim() || null;
+
+      // Location is required when submitting
+      if (status === 'submitted' && !locationName) {
+        return res.status(422).json({ error: 'Location (Town / Suburb / Area) is required before submitting' });
+      }
 
       // Detect containing zone automatically using PostGIS (only when GPS present)
       const hasGps = latitude != null && longitude != null;
@@ -626,13 +640,13 @@ router.post(
         const insertSql = `
           INSERT INTO records (
             module, location, latitude, longitude, altitude, accuracy_m,
-            capture_method, ghana_post_address, owner_name, owner_phone,
+            capture_method, ghana_post_address, location_name, owner_name, owner_phone,
             owner_id_type, owner_id_number, attributes, status,
             zone_id, created_by, device_info, capture_time
           )
           VALUES (
             $1, ${locationSql}, $3, $2, $4, $5,
-            $6, $7, $8, $9,
+            $6, $7, $7, $8, $9,
             $10, $11, $12, $13,
             $14, $15, $16, now()
           )
@@ -646,7 +660,7 @@ router.post(
           altitude || null,
           accuracy_m || null,
           capture_method || null,
-          ghana_post_address?.trim() || null,
+          locationName,
           owner_name || null,
           owner_phone || null,
           owner_id_type || null,
@@ -745,6 +759,8 @@ router.put(
         accuracy_m,
         capture_method,
         ghana_post_address,
+        location_name: bodyLocName,
+        location: altLocName,
         owner_name,
         owner_phone,
         owner_id_type,
@@ -753,12 +769,19 @@ router.put(
         status: requestedStatus,
       } = req.body;
 
+      const locationName = (bodyLocName || altLocName || ghana_post_address || '').trim() || null;
+
       const hasGps = latitude != null && longitude != null;
       const detectedZoneId = hasGps ? await findZoneForPoint(latitude, longitude) : null;
 
+      // Location is required when submitting
+      if (requestedStatus === 'submitted' && !locationName) {
+        return res.status(422).json({ error: 'Location (Town / Suburb / Area) is required before submitting' });
+      }
+
       // If user clicked "Submit Record for Review" and GPS is present, transition to submitted
       const targetStatus =
-        requestedStatus === 'submitted' && hasGps && owner_name?.trim() && owner_phone?.trim()
+        requestedStatus === 'submitted' && hasGps && owner_name?.trim() && owner_phone?.trim() && locationName
           ? 'submitted'
           : existing.status;
 
@@ -787,6 +810,7 @@ router.put(
             accuracy_m = $5,
             capture_method = $6,
             ghana_post_address = $7,
+            location_name = $7,
             owner_name = $8,
             owner_phone = $9,
             owner_id_type = $10,
@@ -807,7 +831,7 @@ router.put(
           altitude || null,
           accuracy_m || null,
           capture_method || null,
-          ghana_post_address?.trim() || null,
+          locationName,
           owner_name || null,
           owner_phone || null,
           owner_id_type || null,
@@ -1058,6 +1082,10 @@ router.patch(
         }
         if (targetStatus === 'submitted') {
           const attrs = typeof record.attributes === 'string' ? JSON.parse(record.attributes || '{}') : (record.attributes || {});
+          const locVal = (record.location_name || record.ghana_post_address || '').trim();
+          if (!locVal) {
+            return res.status(422).json({ error: 'Location (Town / Suburb / Area) is required before submitting' });
+          }
           if (record.latitude == null || record.longitude == null) {
             return res.status(422).json({ error: 'GPS location must be captured before submitting' });
           }

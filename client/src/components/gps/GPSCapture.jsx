@@ -15,18 +15,16 @@ import ManualPinMap from './ManualPinMap';
 import { formatCoordinates, formatAccuracy } from '../../utils/geo';
 
 /**
- * Validates a Ghana Post GPS Digital Address (Optional).
- * Standard Format: District prefix (e.g. GS, GA, GW), 3-5 digits, hyphen, 3-5 digits.
- * Example: GS-0124-5678
- * Returns null if empty (optional field), 'invalid' if bad format, 'valid' if correct.
+ * Validates a Location / Suburb or Ghana Post Digital Address.
+ * Can be a town/suburb (e.g. Amanfrom, Galilea, Tuba) or a Ghana Post code (e.g. GS-0124-5678).
  */
-function validateGhanaPost(value) {
-  if (!value || !value.trim()) return null; // completely optional
+function validateLocation(value) {
+  if (!value || !value.trim()) return null;
   const clean = value.trim().toUpperCase();
-  // Accept standard Ghanaian digital address formats (e.g. GS-0124-5678 or GS01245678)
-  if (/^[A-Z]{2}-\d{3,5}-\d{3,5}$/.test(clean)) return 'valid';
-  if (/^[A-Z]{2}\d{6,10}$/.test(clean)) return 'valid';
-  return 'invalid';
+  if (/^[A-Z]{2}-\d{3,5}-\d{3,5}$/.test(clean) || /^[A-Z]{2}\d{6,10}$/.test(clean)) {
+    return 'digital_address';
+  }
+  return 'locality_text';
 }
 
 export default function GPSCapture({
@@ -47,7 +45,7 @@ export default function GPSCapture({
   const [showManualModal, setShowManualModal] = useState(false);
 
   const hasLocation = latitude != null && longitude != null;
-  const ghanaPostStatus = validateGhanaPost(ghanaPostAddress);
+  const locationStatus = validateLocation(ghanaPostAddress);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
@@ -164,41 +162,36 @@ export default function GPSCapture({
 
         <div className="flex flex-col gap-1 w-full sm:w-auto">
           <div className="flex items-center gap-2">
-            <label htmlFor="ghana_post" className="text-gray-500 shrink-0 text-xs">
-              Ghana Post Address <span className="text-gray-400 font-normal">(Optional)</span>:
+            <label htmlFor="ghana_post" className="text-gray-700 shrink-0 text-xs font-semibold">
+              Location / Suburb <span className="text-red-500 font-bold">*</span>:
             </label>
             <div className="relative">
               <input
                 id="ghana_post"
                 type="text"
-                placeholder="GS-0124-5678 (optional)"
+                placeholder="e.g. Amanfrom, Galilea, or GS-0124-5678"
                 value={ghanaPostAddress || ''}
-                onChange={(e) => onGhanaPostChange(e.target.value.toUpperCase())}
-                maxLength={14}
-                className={`px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:outline-none uppercase font-mono w-44 pr-7 ${
-                  ghanaPostStatus === 'valid'
-                    ? 'border-emerald-400 focus:ring-emerald-400 bg-emerald-50 text-emerald-800'
-                    : ghanaPostStatus === 'invalid'
-                    ? 'border-rose-400 focus:ring-rose-400 bg-rose-50 text-rose-800'
-                    : 'border-gray-300 focus:ring-primary-500'
+                onChange={(e) => onGhanaPostChange(e.target.value)}
+                maxLength={60}
+                className={`px-2.5 py-1 text-xs border rounded-lg focus:ring-1 focus:outline-none w-56 pr-7 ${
+                  locationStatus
+                    ? 'border-emerald-400 focus:ring-emerald-400 bg-emerald-50 text-emerald-900 font-medium'
+                    : 'border-gray-300 focus:ring-primary-500 text-gray-800'
                 }`}
               />
-              {ghanaPostStatus === 'valid' && (
+              {locationStatus && (
                 <BadgeCheck className="w-3.5 h-3.5 text-emerald-600 absolute right-2 top-1/2 -translate-y-1/2" />
-              )}
-              {ghanaPostStatus === 'invalid' && (
-                <AlertCircle className="w-3.5 h-3.5 text-rose-500 absolute right-2 top-1/2 -translate-y-1/2" />
               )}
             </div>
           </div>
-          {ghanaPostStatus === 'invalid' && (
-            <p className="text-[10px] text-rose-600 font-medium pl-1">
-              ⚠ Use format GS-0124-5678 or leave blank if unavailable
+          {locationStatus === 'digital_address' && (
+            <p className="text-[10px] text-emerald-600 font-medium pl-1">
+              ✓ Verified Ghana Post Digital Address
             </p>
           )}
-          {ghanaPostStatus === 'valid' && (
+          {locationStatus === 'locality_text' && (
             <p className="text-[10px] text-emerald-600 font-medium pl-1">
-              ✓ Valid Digital Address
+              ✓ Location / Suburb specified
             </p>
           )}
         </div>

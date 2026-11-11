@@ -136,8 +136,8 @@ export default function ProximityAlert({
                   </div>
                   <div className="text-[11px] text-gray-500 flex flex-wrap items-center gap-2 mt-0.5">
                     <span className="capitalize">{rec.module.replace('_', ' ')}</span>
-                    {rec.ghana_post_address && (
-                      <span className="font-mono text-blue-600 font-medium">🇬🇭 {rec.ghana_post_address}</span>
+                    {(rec.location_name || rec.ghana_post_address) && (
+                      <span className="text-blue-700 font-medium">📍 {rec.location_name || rec.ghana_post_address}</span>
                     )}
                     {rec.upn && <span className="font-mono text-gray-600">UPN: {rec.upn}</span>}
                   </div>
