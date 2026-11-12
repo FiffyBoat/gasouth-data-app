@@ -146,6 +146,7 @@ router.get('/', authenticate, async (req, res) => {
       start_date,
       end_date,
       no_gps,
+      has_gps,
       limit = 50,
       offset = 0,
     } = req.query;
@@ -185,6 +186,10 @@ router.get('/', authenticate, async (req, res) => {
 
     if (no_gps === '1' || no_gps === 'true') {
       conditions.push('(r.latitude IS NULL OR r.longitude IS NULL)');
+    }
+
+    if (has_gps === '1' || has_gps === 'true' || req.query.with_gps === 'true') {
+      conditions.push('(r.latitude IS NOT NULL AND r.longitude IS NOT NULL)');
     }
 
     if (zone_id) {

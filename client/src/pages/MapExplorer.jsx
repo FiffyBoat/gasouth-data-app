@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Footprints, Map as MapIcon, X } from 'lucide-react';
+import { Footprints, MapPin } from 'lucide-react';
 import MapView from '../components/map/MapView';
 import MapFilters from '../components/map/MapFilters';
 import RecordPopup from '../components/map/RecordPopup';
@@ -26,6 +26,9 @@ export default function MapExplorer() {
     search: '',
   });
 
+  // GPS stats for the info banner
+  const [gpsStats, setGpsStats] = useState({ visible: 0, total: 0 });
+
   const fetchRecords = async () => {
     try {
       setLoading(true);
@@ -34,10 +37,29 @@ export default function MapExplorer() {
       if (filters.status) params.append('status', filters.status);
       if (filters.zone_id) params.append('zone_id', filters.zone_id);
       if (filters.search) params.append('search', filters.search);
-      params.append('limit', '500'); // large limit for map visualization
+      // Always request only GPS-tagged records for the map — records without
+      // coordinates cannot be pinned and would just eat into the page limit.
+      params.append('has_gps', 'true');
+      params.append('limit', '2000'); // covers all GPS-tagged records comfortably
 
       const res = await api.get(`/api/records?${params.toString()}`);
-      setRecords(res.data?.records || []);
+      const fetchedRecords = res.data?.records || [];
+      setRecords(fetchedRecords);
+
+      // Also fetch total count (with same filters but without has_gps) for the banner
+      const countParams = new URLSearchParams();
+      if (filters.module) countParams.append('module', filters.module);
+      if (filters.status) countParams.append('status', filters.status);
+      if (filters.zone_id) countParams.append('zone_id', filters.zone_id);
+      if (filters.search) countParams.append('search', filters.search);
+      countParams.append('limit', '1');
+      const countRes = await api.get(`/api/records?${countParams.toString()}`);
+      const totalInFilter = countRes.data?.total || 0;
+
+      setGpsStats({
+        visible: fetchedRecords.length,
+        total: totalInFilter,
+      });
     } catch (err) {
       console.error('Error fetching map records:', err);
     } finally {
@@ -106,6 +128,21 @@ export default function MapExplorer() {
 
       {/* Map Explorer Area */}
       <div className="relative flex-1 w-full bg-gray-100 rounded-2xl overflow-hidden shadow-sm border border-gray-200">
+
+        {/* GPS Record Count Banner */}
+        {!loading && (
+          <div className="absolute top-3 left-3 z-10 bg-black/60 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 shadow">
+            <MapPin className="w-3.5 h-3.5 text-green-400" />
+            <span>
+              <strong>{gpsStats.visible}</strong> GPS-pinned record{gpsStats.visible !== 1 ? 's' : ''} visible
+              {gpsStats.total > gpsStats.visible && (
+                <span className="text-gray-300 ml-1">
+                  · {gpsStats.total - gpsStats.visible} pending GPS capture
+                </span>
+              )}
+            </span>
+          </div>
+        )}
         <MapView
           records={records}
           zones={zones}

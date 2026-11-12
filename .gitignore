@@ -26,3 +26,7 @@ pnpm-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Documentation PDF exports (local use only, never push to git)
+*.pdf
+docs/*.pdf
