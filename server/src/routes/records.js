@@ -627,10 +627,150 @@ router.post(
         geofenceWarning = 'Location is outside your assigned municipal zone.';
       }
 
-      // Check duplicate records
+      const billNumber = (attributes?.bill_number || req.body.bill_number || '').toString().trim();
+      const clientSyncId = (attributes?.client_sync_id || req.body.client_sync_id || '').toString().trim();
+      const isConfirmedDistinct = req.body.is_confirmed_distinct === true || attributes?.is_confirmed_distinct === true;
+
+      // ── Anti-Duplicate Guard 1: Idempotency (Network timeout / double-sync protection) ──
+      if (clientSyncId) {
+        const idempCheck = await query(
+          `SELECT r.*, u.full_name as officer_name
+           FROM records r
+           LEFT JOIN users u ON r.created_by = u.id
+           WHERE r.attributes->>'client_sync_id' = $1
+           LIMIT 1`,
+          [clientSyncId]
+        );
+        if (idempCheck.rows.length > 0) {
+          return res.status(200).json({
+            record: idempCheck.rows[0],
+            already_synced: true,
+            message: 'Record was already synced with this client sync ID.',
+          });
+        }
+      }
+
+      // ── Anti-Duplicate Guard 2: Bill Number Uniqueness & Auto-Merge ────────
+      if (billNumber) {
+        const existingBill = await query(
+          `SELECT r.*, u.full_name as officer_name
+           FROM records r
+           LEFT JOIN users u ON r.created_by = u.id
+           WHERE r.attributes->>'bill_number' = $1
+           ORDER BY r.created_at DESC
+           LIMIT 1`,
+          [billNumber]
+        );
+
+        if (existingBill.rows.length > 0) {
+          const existing = existingBill.rows[0];
+
+          // If the existing record is already submitted/reviewed/approved:
+          if (['submitted', 'reviewed', 'approved'].includes(existing.status)) {
+            return res.status(409).json({
+              error: 'DUPLICATE_BILL_NUMBER',
+              message: `Bill Number "${billNumber}" has already been captured and submitted by officer ${existing.officer_name || 'another officer'} (Status: ${existing.status}).`,
+              existing_record: {
+                id: existing.id,
+                owner_name: existing.owner_name,
+                status: existing.status,
+                officer_name: existing.officer_name,
+                created_at: existing.created_at,
+              },
+            });
+          }
+
+          // If the existing record is an imported GPS-less draft, and incoming has live GPS:
+          // AUTO-MERGE into the existing draft instead of creating a duplicate!
+          if (existing.status === 'draft' && existing.latitude == null && hasGps) {
+            const client = await getClient();
+            try {
+              await client.query('BEGIN');
+              const mergedAttributes = { ...existing.attributes, ...attributes };
+              if (clientSyncId) mergedAttributes.client_sync_id = clientSyncId;
+
+              const updateSql = `
+                UPDATE records
+                SET location = ST_SetSRID(ST_MakePoint($2, $3), 4326),
+                    latitude = $3,
+                    longitude = $2,
+                    altitude = COALESCE($4, altitude),
+                    accuracy_m = COALESCE($5, accuracy_m),
+                    capture_method = COALESCE($6, capture_method, 'device-gps'),
+                    location_name = COALESCE($7, location_name),
+                    ghana_post_address = COALESCE($7, ghana_post_address),
+                    owner_name = COALESCE($8, owner_name),
+                    owner_phone = COALESCE($9, owner_phone),
+                    attributes = $10,
+                    status = $11,
+                    zone_id = COALESCE($12, zone_id),
+                    created_by = $13,
+                    capture_time = now(),
+                    updated_at = now()
+                WHERE id = $1
+                RETURNING *;
+              `;
+              const updateRes = await client.query(updateSql, [
+                existing.id,
+                longitude,
+                latitude,
+                altitude || null,
+                accuracy_m || null,
+                capture_method || 'device-gps',
+                locationName,
+                owner_name || null,
+                owner_phone || null,
+                JSON.stringify(mergedAttributes),
+                status === 'submitted' ? 'submitted' : 'draft',
+                detectedZoneId || existing.zone_id,
+                req.user.id,
+              ]);
+
+              const updatedRecord = updateRes.rows[0];
+              await client.query(
+                `INSERT INTO record_versions (record_id, version_number, data, changed_by)
+                 VALUES ($1, (SELECT COALESCE(MAX(version_number), 0) + 1 FROM record_versions WHERE record_id = $1), $2, $3)`,
+                [updatedRecord.id, JSON.stringify(updatedRecord), req.user.id]
+              );
+              await client.query('COMMIT');
+
+              return res.status(200).json({
+                record: updatedRecord,
+                merged_with_draft: true,
+                message: `Successfully updated imported draft for Bill #${billNumber} with live GPS coordinates.`,
+                detected_zone_id: detectedZoneId,
+                geofence_warning: geofenceWarning,
+              });
+            } catch (err) {
+              await client.query('ROLLBACK');
+              throw err;
+            } finally {
+              client.release();
+            }
+          }
+        }
+      }
+
+      // ── Anti-Duplicate Guard 3: Spatial Proximity & Name Match (e.g. NATPLASS) ──
       let potentialDuplicates = [];
       if (hasGps && owner_name) {
-        potentialDuplicates = await checkDuplicates(latitude, longitude, owner_name);
+        potentialDuplicates = await checkDuplicates(latitude, longitude, owner_name, null, 25, 0.45);
+      }
+
+      // If a nearby duplicate exists and user has NOT confirmed it as distinct sub-unit:
+      if (potentialDuplicates.length > 0 && !isConfirmedDistinct) {
+        const activeDup = potentialDuplicates.find((d) => ['submitted', 'reviewed', 'approved'].includes(d.status)) || potentialDuplicates[0];
+        return res.status(409).json({
+          error: 'DUPLICATE_PROXIMITY_DETECTED',
+          message: `Potential duplicate: "${activeDup.owner_name}" was already registered ${Math.round(activeDup.distance_m)}m away by officer ${activeDup.officer_name || 'another officer'} (Status: ${activeDup.status}).`,
+          duplicate: activeDup,
+          requires_confirmation: true,
+        });
+      }
+
+      // Ensure clientSyncId is preserved in attributes
+      if (clientSyncId && !attributes.client_sync_id) {
+        attributes.client_sync_id = clientSyncId;
       }
 
       const client = await getClient();

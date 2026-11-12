@@ -5,6 +5,7 @@ import {
   CloudUpload,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Inbox,
   RefreshCw,
   X,
@@ -15,6 +16,7 @@ import {
   getOfflineCount,
   syncAllOfflineRecords,
   removeOfflineRecord,
+  markAsDistinctForRetry,
 } from '../../utils/offlineStorage';
 import api from '../../utils/api';
 
@@ -73,11 +75,20 @@ export default function OfflineOutboxIndicator() {
     try {
       const result = await syncAllOfflineRecords(api, (p) => setSyncProgress(p));
       await refreshCount();
+
+      const messages = [];
       if (result.synced > 0) {
-        alert(`Success: ${result.synced} offline record(s) synced to Ga South database!`);
+        messages.push(`✅ ${result.synced} record(s) synced to Ga South database!`);
+      }
+      if (result.skipped > 0) {
+        messages.push(`⚠️ ${result.skipped} record(s) skipped — duplicate already captured on server.`);
       }
       if (result.failed > 0) {
-        alert(`Notice: ${result.failed} record(s) could not sync yet. Will retry when connection improves.`);
+        messages.push(`❌ ${result.failed} record(s) could not sync yet. Will retry when connection improves.`);
+      }
+
+      if (messages.length > 0) {
+        alert(messages.join('\n\n'));
       }
     } catch (err) {
       console.error('Batch sync error:', err);
@@ -91,6 +102,14 @@ export default function OfflineOutboxIndicator() {
     if (confirm('Discard this unsynced offline record?')) {
       await removeOfflineRecord(localId);
       await refreshCount();
+    }
+  };
+
+  const handleForceDistinct = async (localId) => {
+    if (confirm('Confirm this is a separate business/sub-unit at the same location and retry syncing?')) {
+      await markAsDistinctForRetry(localId);
+      await refreshCount();
+      handleSync();
     }
   };
 
@@ -159,25 +178,56 @@ export default function OfflineOutboxIndicator() {
                   Your offline outbox is empty. All captured records are synced!
                 </div>
               ) : (
-                records.map((r) => (
-                  <div key={r.local_id} className="pt-2.5 flex items-center justify-between gap-3 text-xs">
-                    <div>
-                      <div className="font-bold text-gray-800">{r.owner_name || 'Unnamed Record'}</div>
-                      <div className="text-[11px] text-gray-400 capitalize">
-                        {r.module?.replace('_', ' ')} • {r.photos?.length || 0} photo(s) •{' '}
-                        {new Date(r.saved_offline_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                records.map((r) => {
+                  const isSkipped = r.sync_status === 'skipped_duplicate';
+                  return (
+                    <div key={r.local_id} className="pt-2.5 flex flex-col gap-1.5 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-gray-800 flex items-center gap-2 truncate">
+                            <span className="truncate">{r.owner_name || 'Unnamed Record'}</span>
+                            {isSkipped && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shrink-0">
+                                Duplicate Skipped
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-gray-400 capitalize">
+                            {r.module?.replace('_', ' ')} • {r.photos?.length || 0} photo(s) •{' '}
+                            {new Date(r.saved_offline_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isSkipped && (
+                            <button
+                              type="button"
+                              onClick={() => handleForceDistinct(r.local_id)}
+                              className="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-[11px] transition-colors"
+                              title="Mark as distinct sub-unit and retry"
+                            >
+                              Retry as Distinct Unit
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteItem(r.local_id)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                            title="Discard local record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
+
+                      {isSkipped && r.skip_reason && (
+                        <div className="p-2 bg-amber-50 rounded-lg border border-amber-200 text-amber-900 text-[11px] flex items-start gap-1.5 leading-snug">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <span>{r.skip_reason}</span>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteItem(r.local_id)}
-                      className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                      title="Discard local record"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 

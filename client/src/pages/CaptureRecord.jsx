@@ -82,6 +82,24 @@ export default function CaptureRecord() {
       navigate(`/records/${recordId}`);
     } catch (err) {
       console.error('Error saving record:', err);
+
+      // 409 Conflict: Anti-duplicate engine triggered
+      if (err.response?.status === 409) {
+        const errorData = err.response.data;
+        if (errorData.requires_confirmation) {
+          const proceed = confirm(
+            `⚠️ Potential Duplicate Detected:\n\n${errorData.message}\n\nIf this is a separate tenant, container shop, or distinct sub-unit at the same location, click OK to confirm and submit. Click Cancel to abort.`
+          );
+          if (proceed) {
+            return handleSubmit({ ...formData, is_confirmed_distinct: true }, onSuccess);
+          }
+          return;
+        } else {
+          alert(`🚫 Submission Blocked (Duplicate):\n\n${errorData.message}`);
+          return;
+        }
+      }
+
       // Fallback: If network connection failed or server is unreachable, save to offline outbox!
       if (!navigator.onLine || !err.response) {
         try {

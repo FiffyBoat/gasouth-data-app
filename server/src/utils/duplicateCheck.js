@@ -44,12 +44,14 @@ export async function checkDuplicates(
        r.ghana_post_address,
        r.status,
        r.created_at,
+       u.full_name AS officer_name,
        ST_Distance(
          r.location::geography,
          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
        ) AS distance_m,
        similarity(r.owner_name, $4) AS name_similarity
      FROM records r
+     LEFT JOIN users u ON r.created_by = u.id
      WHERE ST_DWithin(
        r.location::geography,
        ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,

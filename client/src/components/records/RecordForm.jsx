@@ -257,6 +257,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
       attributes,
       status,
       photos,
+      is_confirmed_distinct: isConfirmedDistinct,
     };
 
     onSubmit(payload, () => {

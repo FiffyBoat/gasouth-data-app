@@ -1,7 +1,7 @@
 /**
  * Ga South Municipal Assembly - Field Data Collection System
  * Native IndexedDB Offline Storage & Synchronization Engine
- * Supports large watermarked photos, offline forms, and auto-sync.
+ * Supports large watermarked photos, offline forms, idempotent auto-sync, and anti-duplicate guards.
  */
 
 const DB_NAME = 'GaSouth_DCS_Offline';
@@ -40,16 +40,60 @@ export async function saveOfflineRecord(recordData) {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
 
+    // Generate a unique client sync UUID for idempotency
+    const clientSyncId =
+      recordData.client_sync_id ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `offline_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+
     // Prepare photos for storage (IndexedDB natively stores File/Blob objects)
     const recordToSave = {
       ...recordData,
+      client_sync_id: clientSyncId,
       saved_offline_at: new Date().toISOString(),
       sync_status: 'pending',
+      skip_reason: null,
     };
 
     const req = store.add(recordToSave);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+  });
+}
+
+/**
+ * Update an existing offline record in the outbox
+ */
+export async function updateOfflineRecord(localId, updates) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(localId);
+
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+      if (!existing) return resolve(false);
+
+      const merged = { ...existing, ...updates };
+      const putReq = store.put(merged);
+      putReq.onsuccess = () => resolve(true);
+      putReq.onerror = () => reject(putReq.error);
+    };
+
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
+/**
+ * Mark a skipped duplicate record to retry with confirmed distinct sub-unit flag
+ */
+export async function markAsDistinctForRetry(localId) {
+  return updateOfflineRecord(localId, {
+    is_confirmed_distinct: true,
+    sync_status: 'pending',
+    skip_reason: null,
   });
 }
 
@@ -69,9 +113,17 @@ export async function getOfflineRecords() {
 }
 
 /**
- * Get count of pending offline records
+ * Get count of pending offline records (excluding already-skipped duplicates)
  */
 export async function getOfflineCount() {
+  const records = await getOfflineRecords();
+  return records.filter((r) => r.sync_status !== 'skipped_duplicate').length;
+}
+
+/**
+ * Get total count including duplicates
+ */
+export async function getTotalOfflineCount() {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -84,7 +136,7 @@ export async function getOfflineCount() {
 }
 
 /**
- * Remove a record from offline outbox after successful sync
+ * Remove a record from offline outbox after successful sync or discard
  */
 export async function removeOfflineRecord(localId) {
   const db = await openDB();
@@ -99,38 +151,61 @@ export async function removeOfflineRecord(localId) {
 }
 
 /**
- * Synchronize all pending offline records with Render server
+ * Synchronize all pending offline records with the Render backend
+ * Incorporates anti-duplicate checks, auto-merging, and conflict skipping.
  */
 export async function syncAllOfflineRecords(api, onProgress) {
-  const records = await getOfflineRecords();
-  if (records.length === 0) {
-    return { synced: 0, failed: 0 };
+  const allRecords = await getOfflineRecords();
+  const pendingRecords = allRecords.filter((r) => r.sync_status !== 'skipped_duplicate');
+
+  if (pendingRecords.length === 0) {
+    return { synced: 0, failed: 0, skipped: 0, skippedList: [] };
   }
 
   let synced = 0;
   let failed = 0;
+  let skipped = 0;
+  const skippedList = [];
 
-  for (let i = 0; i < records.length; i++) {
-    const item = records[i];
-    const { local_id, photos = [], saved_offline_at, sync_status, ...recordPayload } = item;
+  for (let i = 0; i < pendingRecords.length; i++) {
+    const item = pendingRecords[i];
+    const {
+      local_id,
+      photos = [],
+      saved_offline_at,
+      sync_status,
+      skip_reason,
+      duplicate_info,
+      ...recordPayload
+    } = item;
 
     if (onProgress) {
-      onProgress({ current: i + 1, total: records.length, record: item });
+      onProgress({ current: i + 1, total: pendingRecords.length, record: item });
     }
 
     try {
-      // 1. If editId is present, PUT to update; else POST to create
       let serverRecordId = recordPayload.editId;
       delete recordPayload.editId;
 
+      // Pass the client_sync_id for idempotency
+      if (item.client_sync_id) {
+        recordPayload.client_sync_id = item.client_sync_id;
+        recordPayload.attributes = {
+          ...(recordPayload.attributes || {}),
+          client_sync_id: item.client_sync_id,
+        };
+      }
+
       if (serverRecordId) {
+        // Edit mode: update existing record
         await api.put(`/api/records/${serverRecordId}`, recordPayload);
       } else {
+        // Create mode: server performs idempotency, bill number, and proximity checks
         const res = await api.post('/api/records', recordPayload);
         serverRecordId = res.data?.record?.id;
       }
 
-      // 2. Upload photos if present
+      // Upload photos if present
       const uploadablePhotos = photos.filter((p) => p.file);
       if (serverRecordId && uploadablePhotos.length > 0) {
         const formData = new FormData();
@@ -143,14 +218,34 @@ export async function syncAllOfflineRecords(api, onProgress) {
         });
       }
 
-      // 3. Remove from offline queue
+      // Successfully synced: Remove from offline outbox
       await removeOfflineRecord(local_id);
       synced++;
     } catch (err) {
-      console.error(`Failed to sync offline record ${local_id}:`, err);
-      failed++;
+      if (err.response?.status === 409) {
+        // 409 Conflict: Duplicate record detected on server!
+        const dupData = err.response.data;
+        const reason = dupData.message || 'Duplicate record detected on server; already submitted by another officer.';
+
+        await updateOfflineRecord(local_id, {
+          sync_status: 'skipped_duplicate',
+          skip_reason: reason,
+          skipped_at: new Date().toISOString(),
+          duplicate_info: dupData.duplicate || dupData.existing_record || null,
+        });
+
+        skipped++;
+        skippedList.push({
+          local_id,
+          name: item.owner_name || item.module || 'Unnamed Record',
+          reason,
+        });
+      } else {
+        console.error(`Failed to sync offline record ${local_id}:`, err);
+        failed++;
+      }
     }
   }
 
-  return { synced, failed };
+  return { synced, failed, skipped, skippedList };
 }
