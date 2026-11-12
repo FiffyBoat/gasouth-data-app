@@ -208,55 +208,66 @@ export default function MapView({
     markersRef.current = [];
 
     // Clear old route layers if present
+    if (map.getLayer('collector-route-arrows')) map.removeLayer('collector-route-arrows');
     if (map.getLayer('collector-route-line-casing')) map.removeLayer('collector-route-line-casing');
     if (map.getLayer('collector-route-line')) map.removeLayer('collector-route-line');
     if (map.getSource('collector-route-source')) map.removeSource('collector-route-source');
 
     // SCENARIO 1: Rendering Collector Daily Route
     if (routePoints && routePoints.length > 0) {
-      const coordinates = routePoints
-        .filter((p) => p.latitude != null && p.longitude != null)
-        .map((p) => [p.longitude, p.latitude]);
+      const validPoints = routePoints.filter((p) => p.latitude != null && p.longitude != null);
+      const coordinates = validPoints.map((p) => [p.longitude, p.latitude]);
 
       if (coordinates.length > 1) {
-        // Add Route GeoJSON Polyline
+        // ── Animated dashed route line ──────────────────────────────────────
         map.addSource('collector-route-source', {
           type: 'geojson',
-          data: {
-            type: 'Feature',
-            geometry: {
-              type: 'LineString',
-              coordinates,
-            },
-          },
+          data: { type: 'Feature', geometry: { type: 'LineString', coordinates } },
         });
 
-        // White casing
+        // Soft white glow halo underneath
         map.addLayer({
           id: 'collector-route-line-casing',
           type: 'line',
           source: 'collector-route-source',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': '#ffffff',
-            'line-width': 7,
-            'line-opacity': 0.9,
+            'line-color': '#c4b5fd',
+            'line-width': 10,
+            'line-opacity': 0.35,
+            'line-blur': 4,
           },
         });
 
-        // Vibrant purple path
+        // Solid core line
         map.addLayer({
           id: 'collector-route-line',
           type: 'line',
           source: 'collector-route-source',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
             'line-color': '#7c3aed',
             'line-width': 4,
-            'line-opacity': 1,
+            'line-opacity': 0.95,
+          },
+        });
+
+        // Direction arrows (dashes) on top to show travel direction
+        map.addLayer({
+          id: 'collector-route-arrows',
+          type: 'line',
+          source: 'collector-route-source',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#ffffff',
+            'line-width': 2,
+            'line-opacity': 0.8,
+            'line-dasharray': [0, 5],
           },
         });
       }
 
-      // Add Numbered Sequence Pins for Route
+      // ── Numbered Stop Pins ──────────────────────────────────────────────
       const bounds = new maplibregl.LngLatBounds();
 
       routePoints.forEach((pt, idx) => {
@@ -265,54 +276,76 @@ export default function MapView({
 
         const isStart = idx === 0;
         const isEnd = idx === routePoints.length - 1;
-        const pinBg = isStart ? '#059669' : isEnd ? '#dc2626' : '#7c3aed';
+
+        // Colors: green=start, red=end, purple=middle
+        const pinBg   = isStart ? '#059669' : isEnd ? '#dc2626' : '#7c3aed';
+        const pinGlow = isStart ? 'rgba(5,150,105,0.5)' : isEnd ? 'rgba(220,38,38,0.5)' : 'rgba(124,58,237,0.5)';
+        const pinLabel = isStart ? 'START' : isEnd ? 'END' : String(idx + 1);
 
         const el = document.createElement('div');
-        el.className = 'group cursor-pointer select-none';
+        el.style.cursor = 'pointer';
         el.style.transformOrigin = 'bottom center';
-        el.style.willChange = 'transform';
+        el.style.transition = 'transform 0.15s ease';
+        el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.25)'; });
+        el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
 
         el.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));">
+          <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.45));">
             <div style="
-              display: flex;
-              align-items: center;
-              gap: 3px;
-              padding: 2px 7px;
+              padding: ${isStart || isEnd ? '3px 8px' : '2px 6px'};
               border-radius: 9999px;
               background: ${pinBg};
-              color: #ffffff;
-              font-family: monospace;
-              font-size: 11px;
-              font-weight: 800;
-              border: 2px solid #ffffff;
-              box-shadow: 0 0 10px ${pinBg}aa;
+              color: #fff;
+              font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+              font-size: ${isStart || isEnd ? '10px' : '11px'};
+              font-weight: 900;
+              letter-spacing: 0.3px;
+              border: 2px solid #fff;
+              box-shadow: 0 0 12px ${pinGlow};
               white-space: nowrap;
-            ">
-              <span>#${idx + 1}</span>
-            </div>
-            <div style="width: 2.5px; height: 14px; background: linear-gradient(to bottom, #ffffff, ${pinBg});"></div>
-            <div style="width: 7px; height: 7px; border-radius: 50%; background: ${pinBg}; border: 1.5px solid white;"></div>
+            ">${pinLabel}</div>
+            <div style="width:2px;height:12px;background:linear-gradient(to bottom,#fff,${pinBg});"></div>
+            <div style="width:6px;height:6px;border-radius:50%;background:${pinBg};border:1.5px solid #fff;box-shadow:0 0 6px ${pinGlow};"></div>
           </div>
         `;
 
-        const timeStr = pt.capture_time ? new Date(pt.capture_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+        const timeStr = pt.capture_time || pt.created_at
+          ? new Date(pt.capture_time || pt.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : '';
 
-        const popup = new maplibregl.Popup({ offset: [0, -28], closeButton: false }).setHTML(`
-          <div style="font-family: sans-serif; font-size: 12px; padding: 6px 8px; line-height: 1.4;">
-            <div style="font-weight: 700; color: #7c3aed; font-size: 11px; text-transform: uppercase;">Stop #${idx + 1} ${timeStr ? `• ${timeStr}` : ''}</div>
-            <div style="font-weight: 700; color: #111827; font-size: 13px;">${pt.owner_name || pt.module}</div>
-            <div style="color: #4b5563; font-family: monospace; font-size: 11px;">${formatCoordinates(pt.latitude, pt.longitude)}</div>
-            ${(pt.location_name || pt.ghana_post_address) ? `<div style="color: #2563eb; font-weight: 600; font-size: 11px;">📍 ${pt.location_name || pt.ghana_post_address}</div>` : ''}
+        const statusColor = {
+          reviewed: '#7c3aed', submitted: '#2563eb', approved: '#059669',
+          flagged: '#d97706', rejected: '#dc2626', draft: '#6b7280',
+        }[pt.status] || '#6b7280';
+
+        const statusBg = {
+          reviewed: '#f5f3ff', submitted: '#eff6ff', approved: '#ecfdf5',
+          flagged: '#fffbeb', rejected: '#fef2f2', draft: '#f9fafb',
+        }[pt.status] || '#f9fafb';
+
+        const photoHtml = pt.primary_photo
+          ? `<img src="${pt.primary_photo}" alt="photo" style="width:100%;height:72px;object-fit:cover;border-radius:8px;margin-bottom:6px;border:1px solid #e5e7eb;" />`
+          : '';
+
+        const popup = new maplibregl.Popup({ offset: [0, -32], closeButton: true, maxWidth: '220px' }).setHTML(`
+          <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:12px;padding:4px 2px;line-height:1.45;">
+            ${photoHtml}
+            <div style="font-size:10px;font-weight:800;color:${pinBg};text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">
+              ${isStart ? '🚀 Start' : isEnd ? '🏁 End' : `Stop #${idx + 1}`}${timeStr ? ` · ${timeStr}` : ''}
+            </div>
+            <div style="font-weight:700;color:#111827;font-size:13px;margin-bottom:3px;">${pt.owner_name || pt.module || 'Unknown'}</div>
+            ${(pt.location_name || pt.ghana_post_address)
+              ? `<div style="color:#2563eb;font-weight:600;font-size:11px;margin-bottom:4px;">📍 ${pt.location_name || pt.ghana_post_address}</div>`
+              : ''}
+            <div style="display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:${statusBg};color:${statusColor};font-weight:800;font-size:10px;border:1px solid ${statusColor}30;text-transform:uppercase;">
+              <span style="width:5px;height:5px;border-radius:50%;background:${statusColor};display:inline-block;"></span>
+              ${pt.status || 'draft'}
+            </div>
+            <div style="color:#9ca3af;font-family:monospace;font-size:10px;margin-top:4px;">${formatCoordinates(pt.latitude, pt.longitude)}</div>
           </div>
         `);
 
-        const marker = new maplibregl.Marker({
-          element: el,
-          anchor: 'bottom',
-          pitchAlignment: 'viewport',
-          rotationAlignment: 'viewport',
-        })
+        const marker = new maplibregl.Marker({ element: el, anchor: 'bottom', pitchAlignment: 'viewport', rotationAlignment: 'viewport' })
           .setLngLat([pt.longitude, pt.latitude])
           .setPopup(popup)
           .addTo(map);
@@ -321,7 +354,7 @@ export default function MapView({
       });
 
       if (!bounds.isEmpty()) {
-        map.fitBounds(bounds, { padding: 80, maxZoom: 16 });
+        map.fitBounds(bounds, { padding: 90, maxZoom: 16, duration: 900 });
       }
       return;
     }

@@ -106,8 +106,8 @@ export default function MapExplorer() {
           />
         </div>
 
-        {/* Route Inspector Button for Supervisors / Admins */}
-        {(hasRole('supervisor') || hasRole('admin')) && (
+        {/* Route Inspector Button for Supervisors / Admins / Budget Directors */}
+        {(hasRole('supervisor') || hasRole('admin') || hasRole('budget_director')) && (
           <button
             type="button"
             onClick={() => {
@@ -169,18 +169,14 @@ export default function MapExplorer() {
 
         {/* Active Route Floating Banner at Top Center */}
         {activeRouteData && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-purple-900/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg border border-purple-400/30 text-xs font-medium flex items-center gap-3">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-purple-900/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg border border-purple-400/30 text-xs font-medium flex items-center gap-3 pointer-events-none">
             <Footprints className="w-4 h-4 text-purple-300 animate-pulse" />
             <span>
-              Tracing <strong>{activeRouteData.total_points} stops</strong> ({activeRouteData.total_distance_km} km)
+              Tracing <strong>{activeRouteData.total_points} stops</strong> · {activeRouteData.total_distance_km} km
+              {activeRouteData.officer?.full_name && (
+                <span className="text-purple-300 ml-1">— {activeRouteData.officer.full_name}</span>
+              )}
             </span>
-            <button
-              type="button"
-              onClick={() => setActiveRouteData(null)}
-              className="text-purple-300 hover:text-white font-bold ml-1 text-xs"
-            >
-              ✕ Exit
-            </button>
           </div>
         )}
 

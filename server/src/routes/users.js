@@ -9,9 +9,9 @@ const router = express.Router();
 
 /**
  * GET /api/users
- * List all users with zone assignments (admin only)
+ * List all users with zone assignments (admin, supervisor, budget_director for officer tracing & reporting)
  */
-router.get('/', authenticate, authorize('admin'), async (req, res) => {
+router.get('/', authenticate, authorize('admin', 'supervisor', 'budget_director'), async (req, res) => {
   try {
     const result = await query(
       `SELECT
