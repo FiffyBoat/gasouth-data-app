@@ -1,8 +1,8 @@
 /**
  * @module hooks/useGeolocation
- * @description Core geolocation hook for GPS capture. Supports single-shot
- * capture, multi-reading averaging, accuracy threshold checking, and
- * manual pin placement.
+ * @description Core geolocation hook for GPS capture. Supports continuous
+ * watchPosition warm-up (best reading auto-selected), single-shot capture,
+ * multi-reading averaging, accuracy threshold checking, and manual pin placement.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -18,10 +18,13 @@ const DEFAULT_ACCURACY_THRESHOLD = 15; // meters
  *   accuracy: number|null,
  *   altitude: number|null,
  *   capturing: boolean,
+ *   watchActive: boolean,
  *   error: string|null,
  *   captureLocation: Function,
  *   averageReadings: Function,
  *   setManualPosition: Function,
+ *   startWatching: Function,
+ *   stopWatching: Function,
  *   captureMethod: string|null,
  *   readingCount: number,
  *   reset: Function,
@@ -33,10 +36,13 @@ export default function useGeolocation() {
   const [accuracy, setAccuracy] = useState(null);
   const [altitude, setAltitude] = useState(null);
   const [capturing, setCapturing] = useState(false);
+  const [watchActive, setWatchActive] = useState(false);
   const [error, setError] = useState(null);
   const [captureMethod, setCaptureMethod] = useState(null);
   const [readingCount, setReadingCount] = useState(0);
   const watchRef = useRef(null);
+  // Keeps the best reading seen so far while watching (lowest accuracy meters)
+  const bestReadingRef = useRef(null);
 
   const ACCURACY_THRESHOLD = Number(
     import.meta.env.VITE_GPS_ACCURACY_THRESHOLD || DEFAULT_ACCURACY_THRESHOLD
@@ -61,7 +67,59 @@ export default function useGeolocation() {
   };
 
   /**
-   * Captures a single GPS reading with high accuracy.
+   * Starts a continuous watchPosition stream that warms up satellite GPS.
+   * Each incoming position is compared against bestReadingRef; if more
+   * accurate (lower meters) it updates the live state so the UI shows
+   * the signal improving in real time. Call stopWatching() or captureLocation()
+   * to lock the best fix.
+   */
+  const startWatching = useCallback(() => {
+    if (!navigator.geolocation) return;
+    if (watchRef.current != null) return; // already watching
+
+    bestReadingRef.current = null;
+    setWatchActive(true);
+    setError(null);
+
+    watchRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude: lat, longitude: lng, accuracy: acc, altitude: alt } = position.coords;
+
+        const best = bestReadingRef.current;
+        if (best === null || acc < best.acc) {
+          bestReadingRef.current = { lat, lng, acc, alt };
+          // Update live display so officer can see signal improving
+          setLatitude(lat);
+          setLongitude(lng);
+          setAccuracy(acc);
+          setAltitude(alt);
+          setCaptureMethod('device-gps');
+        }
+      },
+      (err) => {
+        setError(getErrorMessage(err));
+        setWatchActive(false);
+        watchRef.current = null;
+        bestReadingRef.current = null;
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+    );
+  }, []);
+
+  /**
+   * Stops the active watchPosition stream.
+   */
+  const stopWatching = useCallback(() => {
+    if (watchRef.current != null) {
+      navigator.geolocation.clearWatch(watchRef.current);
+      watchRef.current = null;
+    }
+    setWatchActive(false);
+  }, []);
+
+  /**
+   * Locks the current best GPS reading from the watch stream (if active)
+   * or falls back to a fresh single getCurrentPosition call.
    * @returns {Promise<{latitude: number, longitude: number, accuracy: number}>}
    */
   const captureLocation = useCallback(() => {
@@ -73,6 +131,32 @@ export default function useGeolocation() {
         return;
       }
 
+      // --- Lock the best watch reading immediately if we have one ---
+      if (watchRef.current != null && bestReadingRef.current != null) {
+        const { lat, lng, acc, alt } = bestReadingRef.current;
+        stopWatching();
+        setLatitude(lat);
+        setLongitude(lng);
+        setAccuracy(acc);
+        setAltitude(alt);
+        setCaptureMethod('device-gps');
+        setReadingCount(1);
+        setCapturing(false);
+
+        if (acc > ACCURACY_THRESHOLD) {
+          setError(
+            `Accuracy is ${Math.round(acc)}m — above the ${ACCURACY_THRESHOLD}m threshold. ` +
+            `Try moving to open sky or use "Average Readings" for a better fix.`
+          );
+        } else {
+          setError(null);
+        }
+
+        resolve({ latitude: lat, longitude: lng, accuracy: acc });
+        return;
+      }
+
+      // --- Fallback: single-shot getCurrentPosition ---
       setCapturing(true);
       setError(null);
 
@@ -108,7 +192,7 @@ export default function useGeolocation() {
         }
       );
     });
-  }, [ACCURACY_THRESHOLD]);
+  }, [ACCURACY_THRESHOLD, stopWatching]);
 
   /**
    * Takes multiple GPS readings and averages them for improved accuracy.
@@ -237,10 +321,13 @@ export default function useGeolocation() {
     accuracy,
     altitude,
     capturing,
+    watchActive,
     error,
     captureLocation,
     averageReadings,
     setManualPosition,
+    startWatching,
+    stopWatching,
     captureMethod,
     readingCount,
     reset,

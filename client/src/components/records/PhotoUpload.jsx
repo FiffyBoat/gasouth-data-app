@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Image as ImageIcon, X, Upload, MapPin, Eye, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera, Image as ImageIcon, X, Upload, MapPin, Eye, Loader2, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 import { watermarkImage } from '../../utils/watermark';
 import { getPhotoUrl, PHOTO_PLACEHOLDER } from '../../utils/api';
 
@@ -108,12 +108,17 @@ export default function PhotoUpload({
       </div>
 
       {/* Helpful hint banner if GPS is not yet captured */}
-      {!hasLocation && photos.length === 0 && (
-        <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl flex items-start gap-2 text-[11px] text-amber-800">
-          <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-          <span>
-            <strong>Recommended:</strong> Capture device GPS or pin location on the map above first. Any picture taken will be automatically stamped with the exact coordinates and GSMA verification watermark.
-          </span>
+      {!hasLocation && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 shadow-xs">
+          <div className="p-1.5 bg-amber-100 rounded-lg text-amber-700 shrink-0 mt-0.5">
+            <Lock className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="font-semibold text-amber-900">📍 Capture GPS Coordinates First</p>
+            <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+              Coordinates must be captured above before taking photos. Once locked, the camera unlocks automatically and stamps your photos with GSMA verification proof.
+            </p>
+          </div>
         </div>
       )}
 
@@ -182,48 +187,60 @@ export default function PhotoUpload({
 
         {/* Upload Buttons */}
         {!isFull && !processing && (
-          <div className="aspect-video sm:aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-primary-500 flex flex-col items-center justify-center p-3 gap-2 bg-gray-50/50 hover:bg-gray-50 transition-colors text-center">
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => cameraInputRef.current?.click()}
-                className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-100 transition-colors shadow-xs"
-                title="Take Photo with Camera"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors shadow-xs"
-                title="Choose from Gallery"
-              >
-                <ImageIcon className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="space-y-0.5">
-              <span className="block text-[11px] text-gray-700 font-semibold">Take / Add Photo</span>
-              <span className="block text-[10px] text-gray-400">Auto-stamped with GPS</span>
-            </div>
+          hasLocation ? (
+            <div className="aspect-video sm:aspect-square rounded-xl border-2 border-dashed border-gray-300 hover:border-primary-500 flex flex-col items-center justify-center p-3 gap-2 bg-gray-50/50 hover:bg-gray-50 transition-colors text-center">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-100 transition-colors shadow-xs"
+                  title="Take Photo with Camera"
+                >
+                  <Camera className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors shadow-xs"
+                  title="Choose from Gallery"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-0.5">
+                <span className="block text-[11px] text-gray-700 font-semibold">Take / Add Photo</span>
+                <span className="block text-[10px] text-gray-400">Auto-stamped with GPS</span>
+              </div>
 
-            {/* Hidden native inputs */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
-            />
-          </div>
+              {/* Hidden native inputs */}
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                className="hidden"
+                onChange={(e) => handleFiles(e.target.files)}
+              />
+            </div>
+          ) : (
+            <div className="aspect-video sm:aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-3 gap-2 bg-gray-50/60 text-center opacity-70 select-none">
+              <div className="p-2.5 bg-gray-100 text-gray-400 rounded-xl">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="block text-[11px] text-gray-500 font-medium">Camera Locked</span>
+                <span className="block text-[10px] text-gray-400">Capture GPS first</span>
+              </div>
+            </div>
+          )
         )}
       </div>
 

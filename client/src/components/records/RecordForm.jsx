@@ -145,6 +145,18 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
     }
   }, [moduleType, ownerName, ownerPhone, ghanaPostAddress, attributes, geo.latitude, geo.longitude]);
 
+  // Warm up device GPS satellites continuously in background on form mount
+  useEffect(() => {
+    if (geo.startWatching) {
+      geo.startWatching();
+    }
+    return () => {
+      if (geo.stopWatching) {
+        geo.stopWatching();
+      }
+    };
+  }, []);
+
   const handleAttributeChange = (key, val) => {
     setAttributes((prev) => ({ ...prev, [key]: val }));
     updateFieldError(key);
@@ -323,6 +335,7 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
         altitude={geo.altitude}
         captureMethod={geo.captureMethod}
         capturing={geo.capturing}
+        watchActive={geo.watchActive}
         readingCount={geo.readingCount}
         error={geo.error}
         onCapture={geo.captureLocation}

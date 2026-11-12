@@ -9,6 +9,8 @@ import {
   HelpCircle,
   Navigation,
   BadgeCheck,
+  Signal,
+  Lock,
 } from 'lucide-react';
 import AccuracyIndicator from './AccuracyIndicator';
 import ManualPinMap from './ManualPinMap';
@@ -34,6 +36,7 @@ export default function GPSCapture({
   altitude,
   captureMethod,
   capturing,
+  watchActive,
   readingCount,
   error,
   onCapture,
@@ -46,6 +49,17 @@ export default function GPSCapture({
 
   const hasLocation = latitude != null && longitude != null;
   const locationStatus = validateLocation(ghanaPostAddress);
+
+  // Accuracy quality label for live watch display
+  const accuracyLabel = () => {
+    if (accuracy == null) return null;
+    const m = Math.round(accuracy);
+    if (m <= 5) return { text: `${m}m — Excellent`, color: 'text-emerald-600' };
+    if (m <= 15) return { text: `${m}m — Good`, color: 'text-emerald-500' };
+    if (m <= 40) return { text: `${m}m — Fair`, color: 'text-amber-600' };
+    return { text: `${m}m — Poor`, color: 'text-rose-500' };
+  };
+  const accLabel = accuracyLabel();
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
@@ -69,6 +83,22 @@ export default function GPSCapture({
         )}
       </div>
 
+      {/* Live watch status banner — shown when watchPosition is active */}
+      {watchActive && (
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${
+          hasLocation && accuracy != null && accuracy <= 15
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+            : 'bg-blue-50 border-blue-200 text-blue-800'
+        }`}>
+          <Signal className="w-3.5 h-3.5 shrink-0 animate-pulse" />
+          <span>
+            {hasLocation
+              ? `Satellite signal warming — current best: ${accLabel?.text || `${Math.round(accuracy)}m`}. Tap "Lock GPS Position" when ready.`
+              : 'Acquiring satellite fix… Step into open sky for best results.'}
+          </span>
+        </div>
+      )}
+
       {/* Captured Location Display or Capture CTA */}
       {hasLocation ? (
         <div className="bg-gray-50 border border-gray-200/80 rounded-xl p-4 space-y-3">
@@ -87,7 +117,7 @@ export default function GPSCapture({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
             <div>
               <span className="text-gray-400">Accuracy: </span>
-              <span className="font-medium text-gray-700">{formatAccuracy(accuracy)}</span>
+              <span className={`font-semibold ${accLabel?.color || 'text-gray-700'}`}>{formatAccuracy(accuracy)}</span>
             </div>
             {altitude != null && (
               <div>
@@ -111,6 +141,16 @@ export default function GPSCapture({
         </div>
       )}
 
+      {/* Open-sky tip — shown before first lock */}
+      {!hasLocation && !watchActive && (
+        <div className="p-2.5 bg-sky-50 border border-sky-200 rounded-xl flex items-start gap-2 text-[11px] text-sky-800">
+          <HelpCircle className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
+          <span>
+            <strong>Tip:</strong> For best satellite accuracy, step into an open area away from buildings and tall trees before capturing GPS.
+          </span>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
         <button
@@ -121,13 +161,20 @@ export default function GPSCapture({
             w-full py-3 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-sm transition-all
             ${capturing
               ? 'bg-emerald-500 text-white cursor-wait animate-pulse'
-              : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99]'}
+              : watchActive
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99] ring-2 ring-emerald-300'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99]'}
           `}
         >
           {capturing ? (
             <>
               <RefreshCw className="w-4 h-4 animate-spin" />
               <span>Acquiring satellite fix...</span>
+            </>
+          ) : watchActive ? (
+            <>
+              <Lock className="w-4 h-4" />
+              <span>Lock GPS Position</span>
             </>
           ) : (
             <>
