@@ -34,6 +34,10 @@ export default function GPSCapture({
   longitude,
   accuracy,
   altitude,
+  isLocked = false,
+  liveAccuracy = null,
+  liveLatitude = null,
+  liveLongitude = null,
   captureMethod,
   capturing,
   watchActive,
@@ -47,19 +51,20 @@ export default function GPSCapture({
 }) {
   const [showManualModal, setShowManualModal] = useState(false);
 
-  const hasLocation = latitude != null && longitude != null;
+  const hasLockedLocation = Boolean(isLocked && latitude != null && longitude != null);
   const locationStatus = validateLocation(ghanaPostAddress);
 
-  // Accuracy quality label for live watch display
-  const accuracyLabel = () => {
-    if (accuracy == null) return null;
-    const m = Math.round(accuracy);
+  // Accuracy quality label
+  const accuracyLabel = (acc) => {
+    if (acc == null) return null;
+    const m = Math.round(acc);
     if (m <= 5) return { text: `${m}m — Excellent`, color: 'text-emerald-600' };
     if (m <= 15) return { text: `${m}m — Good`, color: 'text-emerald-500' };
     if (m <= 40) return { text: `${m}m — Fair`, color: 'text-amber-600' };
-    return { text: `${m}m — Poor`, color: 'text-rose-500' };
+    return { text: `${m}m — Coarse`, color: 'text-rose-500' };
   };
-  const accLabel = accuracyLabel();
+  const accLabel = accuracyLabel(accuracy);
+  const liveAccLabel = accuracyLabel(liveAccuracy);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
@@ -75,36 +80,48 @@ export default function GPSCapture({
           </div>
         </div>
 
-        {hasLocation && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            {captureMethod === 'averaged' ? `Averaged (${readingCount} pts)` : captureMethod === 'manual-pin' ? 'Manual Pin' : 'Device GPS'}
+        {hasLockedLocation ? (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            {captureMethod === 'averaged' ? `Averaged (${readingCount} pts)` : captureMethod === 'manual-pin' ? 'Manual Pin' : 'GPS Locked'}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+            <Lock className="w-3 h-3 text-amber-600" />
+            <span>GPS Unlocked (Pending)</span>
           </span>
         )}
       </div>
 
-      {/* Live watch status banner — shown when watchPosition is active */}
-      {watchActive && (
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border ${
-          hasLocation && accuracy != null && accuracy <= 15
-            ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-            : 'bg-blue-50 border-blue-200 text-blue-800'
+      {/* Live satellite warm-up banner — shown while watching and NOT yet locked */}
+      {watchActive && !hasLockedLocation && (
+        <div className={`flex items-start gap-3 p-3 rounded-xl text-xs border ${
+          liveAccuracy != null && liveAccuracy <= 15
+            ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+            : 'bg-blue-50/90 border-blue-200 text-blue-900'
         }`}>
-          <Signal className="w-3.5 h-3.5 shrink-0 animate-pulse" />
-          <span>
-            {hasLocation
-              ? `Satellite signal warming — current best: ${accLabel?.text || `${Math.round(accuracy)}m`}. Tap "Lock GPS Position" when ready.`
-              : 'Acquiring satellite fix… Step into open sky for best results.'}
-          </span>
+          <Signal className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600 animate-pulse" />
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="font-bold">
+                {liveAccuracy != null
+                  ? `Live Satellite Accuracy: ${liveAccLabel?.text || `${Math.round(liveAccuracy)}m`}`
+                  : 'Acquiring satellite signal in background...'}
+              </span>
+            </div>
+            <p className="text-[11px] opacity-90 leading-relaxed">
+              Walk directly in front of the structure/signboard, then tap <strong>"Lock GPS Position"</strong> below to record coordinates and unlock photos.
+            </p>
+          </div>
         </div>
       )}
 
-      {/* Captured Location Display or Capture CTA */}
-      {hasLocation ? (
-        <div className="bg-gray-50 border border-gray-200/80 rounded-xl p-4 space-y-3">
+      {/* Locked Location Display */}
+      {hasLockedLocation ? (
+        <div className="bg-emerald-50/30 border border-emerald-200/80 rounded-xl p-4 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <span className="text-xs uppercase tracking-wider text-gray-400 font-semibold">Coordinates</span>
+              <span className="text-xs uppercase tracking-wider text-emerald-800 font-bold">Locked Coordinates</span>
               <p className="text-lg font-mono font-bold text-gray-900">
                 {formatCoordinates(latitude, longitude)}
               </p>
@@ -114,7 +131,7 @@ export default function GPSCapture({
             )}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-gray-200 text-xs text-gray-600">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-emerald-100 text-xs text-gray-600">
             <div>
               <span className="text-gray-400">Accuracy: </span>
               <span className={`font-semibold ${accLabel?.color || 'text-gray-700'}`}>{formatAccuracy(accuracy)}</span>
@@ -141,12 +158,12 @@ export default function GPSCapture({
         </div>
       )}
 
-      {/* Open-sky tip — shown before first lock */}
-      {!hasLocation && !watchActive && (
+      {/* Open-sky tip — shown before first lock when not watching */}
+      {!hasLockedLocation && !watchActive && (
         <div className="p-2.5 bg-sky-50 border border-sky-200 rounded-xl flex items-start gap-2 text-[11px] text-sky-800">
           <HelpCircle className="w-3.5 h-3.5 text-sky-500 shrink-0 mt-0.5" />
           <span>
-            <strong>Tip:</strong> For best satellite accuracy, step into an open area away from buildings and tall trees before capturing GPS.
+            <strong>Tip:</strong> Step into open sky before capturing GPS for best accuracy.
           </span>
         </div>
       )}
@@ -161,8 +178,8 @@ export default function GPSCapture({
             w-full py-3 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2 shadow-sm transition-all
             ${capturing
               ? 'bg-emerald-500 text-white cursor-wait animate-pulse'
-              : watchActive
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99] ring-2 ring-emerald-300'
+              : !hasLockedLocation && watchActive
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99] ring-4 ring-emerald-200 font-bold'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-[0.99]'}
           `}
         >
@@ -171,7 +188,7 @@ export default function GPSCapture({
               <RefreshCw className="w-4 h-4 animate-spin" />
               <span>Acquiring satellite fix...</span>
             </>
-          ) : watchActive ? (
+          ) : !hasLockedLocation && watchActive ? (
             <>
               <Lock className="w-4 h-4" />
               <span>Lock GPS Position</span>
@@ -179,7 +196,7 @@ export default function GPSCapture({
           ) : (
             <>
               <MapPin className="w-4 h-4" />
-              <span>{hasLocation ? 'Re-capture GPS Fix' : '📍 Capture My Location'}</span>
+              <span>{hasLockedLocation ? 'Re-capture GPS Fix' : '📍 Capture My Location'}</span>
             </>
           )}
         </button>
@@ -247,8 +264,8 @@ export default function GPSCapture({
       {/* Manual Pin Modal */}
       {showManualModal && (
         <ManualPinMap
-          initialLat={latitude}
-          initialLng={longitude}
+          initialLat={latitude || liveLatitude}
+          initialLng={longitude || liveLongitude}
           onConfirm={(lat, lng) => {
             onManualSelect(lat, lng);
             setShowManualModal(false);

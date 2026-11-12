@@ -1,8 +1,9 @@
 /**
  * @module hooks/useGeolocation
  * @description Core geolocation hook for GPS capture. Supports continuous
- * watchPosition warm-up (best reading auto-selected), single-shot capture,
- * multi-reading averaging, accuracy threshold checking, and manual pin placement.
+ * watchPosition warm-up (best reading auto-selected in background), single-shot capture,
+ * multi-reading averaging, accuracy threshold checking, manual pin placement,
+ * and an explicit isLocked state that unlocks the camera.
  */
 
 import { useState, useCallback, useRef } from 'react';
@@ -17,6 +18,10 @@ const DEFAULT_ACCURACY_THRESHOLD = 15; // meters
  *   longitude: number|null,
  *   accuracy: number|null,
  *   altitude: number|null,
+ *   isLocked: boolean,
+ *   liveAccuracy: number|null,
+ *   liveLatitude: number|null,
+ *   liveLongitude: number|null,
  *   capturing: boolean,
  *   watchActive: boolean,
  *   error: string|null,
@@ -35,11 +40,19 @@ export default function useGeolocation() {
   const [longitude, setLongitude] = useState(null);
   const [accuracy, setAccuracy] = useState(null);
   const [altitude, setAltitude] = useState(null);
+  const [isLocked, setIsLocked] = useState(false);
+
+  // Live incoming readings from background satellite warming (before lock)
+  const [liveAccuracy, setLiveAccuracy] = useState(null);
+  const [liveLatitude, setLiveLatitude] = useState(null);
+  const [liveLongitude, setLiveLongitude] = useState(null);
+
   const [capturing, setCapturing] = useState(false);
   const [watchActive, setWatchActive] = useState(false);
   const [error, setError] = useState(null);
   const [captureMethod, setCaptureMethod] = useState(null);
   const [readingCount, setReadingCount] = useState(0);
+
   const watchRef = useRef(null);
   // Keeps the best reading seen so far while watching (lowest accuracy meters)
   const bestReadingRef = useRef(null);
@@ -68,10 +81,9 @@ export default function useGeolocation() {
 
   /**
    * Starts a continuous watchPosition stream that warms up satellite GPS.
-   * Each incoming position is compared against bestReadingRef; if more
-   * accurate (lower meters) it updates the live state so the UI shows
-   * the signal improving in real time. Call stopWatching() or captureLocation()
-   * to lock the best fix.
+   * Each incoming position updates liveAccuracy/liveLatitude/liveLongitude
+   * and is compared against bestReadingRef. Does NOT set isLocked or
+   * final coordinates until captureLocation() or "Lock GPS" is triggered.
    */
   const startWatching = useCallback(() => {
     if (!navigator.geolocation) return;
@@ -85,15 +97,13 @@ export default function useGeolocation() {
       (position) => {
         const { latitude: lat, longitude: lng, accuracy: acc, altitude: alt } = position.coords;
 
+        setLiveLatitude(lat);
+        setLiveLongitude(lng);
+        setLiveAccuracy(acc);
+
         const best = bestReadingRef.current;
         if (best === null || acc < best.acc) {
           bestReadingRef.current = { lat, lng, acc, alt };
-          // Update live display so officer can see signal improving
-          setLatitude(lat);
-          setLongitude(lng);
-          setAccuracy(acc);
-          setAltitude(alt);
-          setCaptureMethod('device-gps');
         }
       },
       (err) => {
@@ -120,6 +130,7 @@ export default function useGeolocation() {
   /**
    * Locks the current best GPS reading from the watch stream (if active)
    * or falls back to a fresh single getCurrentPosition call.
+   * Sets isLocked = true, unlocking the photo gate.
    * @returns {Promise<{latitude: number, longitude: number, accuracy: number}>}
    */
   const captureLocation = useCallback(() => {
@@ -132,13 +143,14 @@ export default function useGeolocation() {
       }
 
       // --- Lock the best watch reading immediately if we have one ---
-      if (watchRef.current != null && bestReadingRef.current != null) {
+      if (bestReadingRef.current != null) {
         const { lat, lng, acc, alt } = bestReadingRef.current;
         stopWatching();
         setLatitude(lat);
         setLongitude(lng);
         setAccuracy(acc);
         setAltitude(alt);
+        setIsLocked(true);
         setCaptureMethod('device-gps');
         setReadingCount(1);
         setCapturing(false);
@@ -163,10 +175,12 @@ export default function useGeolocation() {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude: lat, longitude: lng, accuracy: acc, altitude: alt } = position.coords;
+          stopWatching();
           setLatitude(lat);
           setLongitude(lng);
           setAccuracy(acc);
           setAltitude(alt);
+          setIsLocked(true);
           setCaptureMethod('device-gps');
           setReadingCount(1);
           setCapturing(false);
@@ -196,6 +210,7 @@ export default function useGeolocation() {
 
   /**
    * Takes multiple GPS readings and averages them for improved accuracy.
+   * Sets isLocked = true upon completion.
    * @param {number} [count=5] - Number of readings to take
    * @returns {Promise<{latitude: number, longitude: number, accuracy: number}>}
    */
@@ -229,10 +244,8 @@ export default function useGeolocation() {
               setReadingCount(completed);
 
               if (completed < count) {
-                // Small delay between readings to allow sensor updates
                 setTimeout(takeReading, 800);
               } else {
-                // Compute weighted average (weight by inverse accuracy)
                 let totalWeight = 0;
                 let weightedLat = 0;
                 let weightedLng = 0;
@@ -255,10 +268,12 @@ export default function useGeolocation() {
                 const bestAcc = Math.min(...readings.map((r) => r.acc));
                 const finalAlt = altCount > 0 ? avgAlt / altCount : null;
 
+                stopWatching();
                 setLatitude(avgLat);
                 setLongitude(avgLng);
                 setAccuracy(bestAcc);
                 setAltitude(finalAlt);
+                setIsLocked(true);
                 setCaptureMethod('averaged');
                 setCapturing(false);
 
@@ -282,44 +297,57 @@ export default function useGeolocation() {
         takeReading();
       });
     },
-    []
+    [stopWatching]
   );
 
   /**
-   * Sets a manual pin position (from map click).
+   * Sets a manual pin position (from map click or existing record preload).
+   * Sets isLocked = true.
    * @param {number} lat - Latitude
    * @param {number} lng - Longitude
+   * @param {number} [acc=10] - Accuracy
    */
-  const setManualPosition = useCallback((lat, lng) => {
+  const setManualPosition = useCallback((lat, lng, acc = 10) => {
+    stopWatching();
     setLatitude(lat);
     setLongitude(lng);
-    setAccuracy(null);
+    setAccuracy(acc);
     setAltitude(null);
+    setIsLocked(true);
     setCaptureMethod('manual-pin');
     setReadingCount(0);
     setError(null);
     setCapturing(false);
-  }, []);
+  }, [stopWatching]);
 
   /**
-   * Resets all geolocation state.
+   * Resets all geolocation state and locks.
    */
   const reset = useCallback(() => {
+    stopWatching();
     setLatitude(null);
     setLongitude(null);
     setAccuracy(null);
     setAltitude(null);
+    setIsLocked(false);
+    setLiveAccuracy(null);
+    setLiveLatitude(null);
+    setLiveLongitude(null);
     setCapturing(false);
     setError(null);
     setCaptureMethod(null);
     setReadingCount(0);
-  }, []);
+  }, [stopWatching]);
 
   return {
     latitude,
     longitude,
     accuracy,
     altitude,
+    isLocked,
+    liveAccuracy,
+    liveLatitude,
+    liveLongitude,
     capturing,
     watchActive,
     error,

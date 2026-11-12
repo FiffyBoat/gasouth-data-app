@@ -9,6 +9,7 @@ export default function PhotoUpload({
   onRemovePhoto,
   maxPhotos = 4,
   location = null,
+  isLocked = false,
   ghanaPostAddress = null,
   collectorName = null,
   moduleType = 'property',
@@ -20,7 +21,12 @@ export default function PhotoUpload({
   const [processingCount, setProcessingCount] = useState(0);
   const [previewModalPhoto, setPreviewModalPhoto] = useState(null);
 
-  const hasLocation = location?.latitude != null && location?.longitude != null;
+  // Strictly check that GPS has been explicitly locked AND valid coordinates exist
+  const hasLocation = Boolean(
+    (isLocked || location?.isLocked) &&
+    location?.latitude != null &&
+    location?.longitude != null
+  );
 
   const handleFiles = async (files) => {
     if (!files || files.length === 0) return;

@@ -333,6 +333,10 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
         longitude={geo.longitude}
         accuracy={geo.accuracy}
         altitude={geo.altitude}
+        isLocked={geo.isLocked}
+        liveAccuracy={geo.liveAccuracy}
+        liveLatitude={geo.liveLatitude}
+        liveLongitude={geo.liveLongitude}
         captureMethod={geo.captureMethod}
         capturing={geo.capturing}
         watchActive={geo.watchActive}
@@ -794,10 +798,12 @@ export default function RecordForm({ initialRecord, onSubmit, isSubmitting }) {
           onAddPhoto={handleAddPhoto}
           onRemovePhoto={handleRemovePhoto}
           maxPhotos={4}
+          isLocked={geo.isLocked}
           location={{
             latitude: geo.latitude,
             longitude: geo.longitude,
             accuracy: geo.accuracy,
+            isLocked: geo.isLocked,
           }}
           ghanaPostAddress={ghanaPostAddress}
           collectorName={user?.full_name}
